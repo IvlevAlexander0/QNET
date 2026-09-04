@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Результат обработки</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .images-container { display: flex; justify-content: space-around; margin: 20px 0; }
+        .image-box { text-align: center; }
+        img { max-width: 400px; max-height: 400px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .actions { text-align: center; margin-top: 20px; }
+        .link-button {
+            background: none;
+            border: none;
+            color: mediumslateblue;
+            text-decoration: underline;
+            cursor: pointer;
+            font: inherit;
+        }
+        .color-indicator {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            background-color: var(--color);
+        }
+        table {
+            margin: 20px auto;
+            border-collapse: collapse;
+            width: 80%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .label-true { color: green; font-weight: bold; }
+        .label-false { color: gray; }
+    </style>
+</head>
+<body>
+    <h1>Результат обработки изображения</h1>
+
+    <p class="success">{{ message }}</p>
+
+    <div class="images-container">
+        <div class="image-box">
+            <h3>Оригинал</h3>
+            <img src="{{ original_image }}" alt="Оригинальное изображение">
+        </div>
+
+        <div class="image-box">
+            <h3>Сегментированное</h3>
+            <img src="{{ segmentation_image }}" alt="Сегментированное изображение">
+        </div>
+    </div>
+
+    <h3>Результаты классификации (multi‑label)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Класс</th>
+                <th>Цвет</th>
+                <th>Вероятность</th>
+                <th>Обнаружен</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in predictions %}
+            <tr>
+                <td>{{ item.name }}</td>
+                <td><span class="color-indicator" style="--color: {{ item.color }};"></span></td>
+                <td>{{ "%.2f"|format(item.prob) }}</td>
+                <td class="{% if item.label %}label-true{% else %}label-false{% endif %}">
+                    {% if item.label %}✅ Да{% else %}❌ Нет{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="actions">
+        <a href="{{ base_url }}/" class="link-button">Загрузить другое изображение</a>
+        <br>
+        <form method="post" action="{{ base_url }}/download/">
+            <input type="hidden" name="image_data" value="{{ segmentation_image }}">
+            <input type="hidden" name="filename" value="{{ filename }}">
+            <button type="submit" class="link-button">Скачать сегментированное изображение</button>
+        </form>
+    </div>
+</body>
+</html>

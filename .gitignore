@@ -1,0 +1,8 @@
+**/__pycache__
+.env
+venv
+tmp
+config.json
+logs
+best_models_weights
+logs_find.py

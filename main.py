@@ -310,9 +310,9 @@ def main(config_path='config.json'):
         logger.info(f"Training plots saved to {vis_dir}/training_metrics.png")
 
         # Предсказания на тесте
-        save_predictions(model, test_paths, test_labels, class_names, config.device,
-                        transform=data_transform['test'], save_dir=vis_dir)
-        logger.info(f"Predictions saved to {vis_dir}")
+        # save_predictions(model, test_paths, test_labels, class_names, config.device,
+        #                 transform=data_transform['test'], save_dir=vis_dir)
+        # logger.info(f"Predictions saved to {vis_dir}")
 
     close_tensorboard_writer()
 

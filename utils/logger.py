@@ -2,8 +2,10 @@ import os
 import sys
 import logging
 import shutil
+import re
 from datetime import datetime
 import torch
+
 
 # Опциональный импорт TensorBoard
 try:
@@ -149,3 +151,86 @@ def get_logger():
 def get_run_dir():
     global _run_dir
     return _run_dir
+
+def get_completed_epochs(run_dir):
+    """
+    Возвращает количество завершённых эпох для запуска.
+    Сначала пытается прочитать чекпоинт (checkpoint_last.pth),
+    если его нет — парсит последнюю строку log.txt с упоминанием эпохи.
+    Если ничего не найдено — возвращает 0.
+    """
+    checkpoint_path = os.path.join(run_dir, 'checkpoint_last.pth')
+    if os.path.exists(checkpoint_path):
+        try:
+            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            # В чекпоинте хранится epoch — номер последней завершённой эпохи (начиная с 0)
+            epoch = checkpoint.get('epoch', -1)
+            if epoch >= 0:
+                return epoch + 1   # число завершённых эпох
+        except Exception:
+            pass
+
+    log_file = os.path.join(run_dir, 'log.txt')
+    if os.path.exists(log_file):
+        with open(log_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        # Ищем последнюю строку с "Epoch X/Y" (X — номер завершённой эпохи)
+        pattern = r'Epoch\s+(\d+)/(\d+)'
+        for line in reversed(lines):
+            match = re.search(pattern, line)
+            if match:
+                return int(match.group(1))
+    return 0
+
+
+def clean_log_folders(log_root, min_epochs=1, dry_run=False):
+    """
+    Удаляет подпапки в log_root, в которых:
+      - нет файла log.txt, или
+      - количество завершённых эпох меньше min_epochs.
+
+    Аргументы:
+        log_root (str): путь к корневой папке с логами.
+        min_epochs (int): минимальное число завершённых эпох (по умолчанию 1).
+        dry_run (bool): если True, только выводит список того, что будет удалено,
+                        но не удаляет.
+
+    Возвращает:
+        tuple: (удалено_папок, сохранено_папок)
+    """
+    if not os.path.exists(log_root):
+        print(f"Папка {log_root} не существует.")
+        return 0, 0
+
+    removed = 0
+    kept = 0
+
+    for item in os.listdir(log_root):
+        full_path = os.path.join(log_root, item)
+        if not os.path.isdir(full_path):
+            continue   # пропускаем файлы
+
+        log_file = os.path.join(full_path, 'log.txt')
+        if not os.path.exists(log_file):
+            # Нет лога — удаляем
+            if dry_run:
+                print(f"Будет удалено: {full_path} (нет log.txt)")
+            else:
+                shutil.rmtree(full_path)
+                print(f"Удалено: {full_path} (нет log.txt)")
+            removed += 1
+            continue
+
+        epochs = get_completed_epochs(full_path)
+        if epochs < min_epochs:
+            if dry_run:
+                print(f"Будет удалено: {full_path} (эпох: {epochs} < {min_epochs})")
+            else:
+                shutil.rmtree(full_path)
+                print(f"Удалено: {full_path} (эпох: {epochs} < {min_epochs})")
+            removed += 1
+        else:
+            print(f"Оставлено: {full_path} (эпох: {epochs})")
+            kept += 1
+
+    return removed, kept

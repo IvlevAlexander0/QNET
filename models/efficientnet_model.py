@@ -64,8 +64,8 @@ class HybridQNet(nn.Module):
         self.q_net2 = self._create_qnet(num_classes, config)
         self.q_net3 = self._create_qnet(num_classes, config)
 
-        self.BN_out = nn.BatchNorm1d(2^num_classes * 3)
-        self.final = nn.Linear(2^num_classes * 3, num_classes)
+        self.BN_out = nn.BatchNorm1d(2**num_classes * 3)
+        self.final = nn.Linear(2**num_classes * 3, num_classes)
 
     def _create_qnet(self, num_classes, config):
         """Создаёт новый квантовый слой с независимыми параметрами."""

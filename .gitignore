@@ -6,3 +6,5 @@ config.json
 logs
 best_models_weights
 logs_find.py
+data/dataset_from_nj.py
+dataset_test_img.py

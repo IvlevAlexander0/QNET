@@ -1,9 +1,6 @@
 import os
 import json
 import torch
-from dotenv import load_dotenv
-
-load_dotenv()
 
 class Config:
     """Конфигурация проекта, загружаемая из JSON-файла."""
@@ -14,22 +11,24 @@ class Config:
     q_load_path = "__.pth"
     h_load_path = "__.pth"
 
-    train_part = 0.7
-    val_part = 0.1
-    batch_size = 128
+    train_part = 0.6
+    val_part = 0.2
     in_height = 256
     in_width = 1600
     threshold = 0.5
 
-    epochs = 64
-    initial_lr = 0.002
+    epochs = 16
+    initial_lr = 0.001
     w_decay = 0.0
+    batch_size = 32
 
-    shots = 512
-    backend_type = 'aer_simulator'  # 'aer_simulator', 'octillion_remote', 'octillion_local'
-    octillion_token = "---"
-    octillion_chip = "Snowdrop 4q ver2"
+    shots = 128
+    backend_type = 'aer_simulator'  # 'aer_simulator', 'noisy_simulator'
     transpile_before = True
+    encoding_type = 'angle'
+    ansatz_type = 'ry'
+    entanglement = 'circular'
+    reps = 4
 
     C_train_flag = True
     Q_train_flag = True
@@ -45,8 +44,8 @@ class Config:
     # num_workers = 8
     # prefetch_factor = 2
 
-    model_name = 'clp_net'       
-    model_mode = 'hybrid'         # 'classical', 'quantum', 'hybrid'
+    model_name = 'effnetv0'       
+    model_mode = 'quantum'         # 'classical', 'quantum', 'hybrid'
 
     noise_config = None
 
@@ -57,10 +56,10 @@ class Config:
     resume_from = None
 
     num_classes = 4
-    class_weights = [2, 7, 0.34, 2.2]
+    class_weights = [0.17, 0.6, 0.03, 0.2]
     transform_mean = 0.343
     transform_std = 0.134
-    class_names = ["1", "2", "3", "4"]
+    class_names = ["царапины", "трещины", "расслоения", "пятна"]
     class_colors = ['#FF4136', '#2ECC40', '#0074D9', '#FF851B']
 
     def __init__(self, **kwargs):
@@ -79,27 +78,13 @@ class Config:
 
         instance = cls()
         for key, value in data.items():
-            # Преобразование типов для некоторых ключей
             if key in ['C_train_flag', 'Q_train_flag', 'C_load_params', 'Q_load_params',
                        'det', 'transpile_before', 'enable_logging', 'save_visualizations', 'use_compile']:
                 if isinstance(value, str):
                     value = value.lower() == 'true'
             if key == 'device' and isinstance(value, str):
                 value = torch.device(value)
-            # Устанавливаем атрибут без проверки на существование
             setattr(instance, key, value)
-
-        env_token = os.environ.get('OCTILLION_TOKEN')
-        if env_token is not None:
-            setattr(instance, 'octillion_token', env_token)
-            # Логируем предупреждение, если в конфиге был другой токен
-            if hasattr(instance, 'octillion_token') and getattr(instance, 'octillion_token') != env_token:
-                print("INFO: OCTILLION_TOKEN environment variable overrides config value.")
-        else:
-            # Если токен не задан в окружении, но в конфиге стоит "---", выдаём предупреждение
-            if hasattr(instance, 'octillion_token') and instance.octillion_token == "---":
-                print("WARNING: octillion_token is set to placeholder '---'. "
-                      "Set OCTILLION_TOKEN environment variable for real usage.")
 
         return instance
 

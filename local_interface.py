@@ -11,7 +11,7 @@ from PIL import Image, ImageQt
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QFileDialog, QStatusBar, QProgressDialog,
-    QSplitter, QMessageBox, QToolButton, QMenu, QSlider, QLineEdit,
+    QSplitter, QMessageBox, QToolButton, QMenu, QLineEdit,
     QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PySide6.QtGui import QPixmap, QImage, QImageReader, QColor
@@ -23,10 +23,12 @@ from config import Config
 
 
 class ImageViewer(QMainWindow):
-    def __init__(self, classes, classification, segmentation):
+    def __init__(self, classes, classification, segmentation, batch_size=32):
         super().__init__()
         self.setWindowTitle("Просмотр изображений (Multi‑label)")
         self.setGeometry(100, 100, 1200, 700)
+
+        self.batch_size = max(1, int(batch_size))
 
         self.image_paths = []
         self.labels = []          # каждый элемент – список активных классов (строки)
@@ -36,7 +38,7 @@ class ImageViewer(QMainWindow):
         self.classes = classes
         self.threshold = 0.5
 
-        # Задаём цвета для классов (можно взять из конфига или сгенерировать)
+        # Задаём цвета для классов
         self.class_colors = [
             '#FF4136', '#2ECC40', '#0074D9', '#FF851B',
             '#FFD700', '#8A2BE2', '#FF69B4', '#00CED1'
@@ -47,7 +49,7 @@ class ImageViewer(QMainWindow):
                 hue = i / len(self.classes)
                 rgb = colorsys.hsv_to_rgb(hue, 0.8, 0.8)
                 self.class_colors.append('#{:02x}{:02x}{:02x}'.format(
-                    int(rgb[0]*255), int(rgb[1]*255), int(rgb[2]*255)
+                    int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255)
                 ))
 
         self.segmented_paths = {}
@@ -83,7 +85,9 @@ class ImageViewer(QMainWindow):
         # Таблица предсказаний
         self.prediction_table = QTableWidget()
         self.prediction_table.setColumnCount(4)
-        self.prediction_table.setHorizontalHeaderLabels(["Класс", "Цвет", "Вероятность", "Обнаружен"])
+        self.prediction_table.setHorizontalHeaderLabels(
+            ["Класс", "Цвет", "Вероятность", "Обнаружен"]
+        )
         self.prediction_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.prediction_table.verticalHeader().setVisible(False)
         self.prediction_table.setMinimumHeight(150)
@@ -92,6 +96,13 @@ class ImageViewer(QMainWindow):
         self.main_splitter.setSizes([500, 200])
 
         # --- Остальные элементы управления ---
+        self.filename_label = QLabel()
+        self.filename_label.setAlignment(Qt.AlignCenter)
+        self.filename_label.setStyleSheet(
+            "font-size: 14px; color: #333333; padding: 2px;"
+        )
+        self.filename_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+
         self.caption_label = QLabel()
         self.caption_label.setAlignment(Qt.AlignCenter)
         self.caption_label.setStyleSheet("font-size: 16px; font-weight: bold;")
@@ -122,23 +133,16 @@ class ImageViewer(QMainWindow):
         self.prev_button.clicked.connect(self.show_prev_image)
         self.next_button.clicked.connect(self.show_next_image)
 
-        # Элементы управления порогом
+        # --- Порог: только поле ввода, без ползунка ---
         self.threshold_label = QLabel(f"Порог: {self.threshold:.2f}")
-        self.threshold_slider = QSlider(Qt.Horizontal)
-        self.threshold_slider.setRange(0, 100)
-        self.threshold_slider.setValue(int(self.threshold * 100))
-        self.threshold_slider.setTickInterval(5)
-        self.threshold_slider.setTickPosition(QSlider.TicksBelow)
-        self.threshold_slider.valueChanged.connect(self.on_threshold_changed)
 
         self.threshold_edit = QLineEdit()
-        self.threshold_edit.setFixedWidth(50)
+        self.threshold_edit.setFixedWidth(60)
         self.threshold_edit.setText(f"{self.threshold:.2f}")
         self.threshold_edit.returnPressed.connect(self.on_threshold_entered)
 
         threshold_layout = QHBoxLayout()
-        threshold_layout.addWidget(QLabel("Порог:"))
-        threshold_layout.addWidget(self.threshold_slider)
+        threshold_layout.addWidget(self.threshold_label)
         threshold_layout.addWidget(self.threshold_edit)
         threshold_layout.addStretch()
 
@@ -153,6 +157,7 @@ class ImageViewer(QMainWindow):
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.main_splitter, 1)
+        main_layout.addWidget(self.filename_label)
         main_layout.addWidget(self.caption_label)
         main_layout.addLayout(threshold_layout)
         main_layout.addLayout(button_layout1)
@@ -161,53 +166,163 @@ class ImageViewer(QMainWindow):
         self.central_widget.setLayout(main_layout)
 
     # ----------------------------------------------------------------------
-    # Вспомогательный метод для получения PIL.Image из сегментации
+    # Преобразование результата сегментации в PIL.Image
     # ----------------------------------------------------------------------
-    def _get_segmented_image(self, img):
-        """Вызывает сегментатор и преобразует результат в PIL.Image."""
-        result = self.segmentation(img)
-        if isinstance(result, np.ndarray):
-            # Предполагаем, что массив в диапазоне [0, 1] (float) или [0, 255] (uint8)
-            if result.dtype in (np.float32, np.float64):
-                arr = (result * 255).astype(np.uint8)
-            elif result.dtype == np.uint8:
-                arr = result
-            else:
-                arr = result.astype(np.uint8)
-            # Если массив одноканальный, конвертируем в RGB (для совместимости)
-            if arr.ndim == 2:
-                arr = np.stack([arr] * 3, axis=-1)
-            elif arr.ndim == 3 and arr.shape[2] == 1:
-                arr = np.concatenate([arr] * 3, axis=-1)
-            elif arr.ndim == 3 and arr.shape[2] != 3:
-                raise ValueError(f"Unexpected channel dimension: {arr.shape[2]}")
-            return Image.fromarray(arr)
-        elif isinstance(result, Image.Image):
+    @staticmethod
+    def _segm_to_pil(result):
+        """Приводит np.ndarray (H,W[,C]) или PIL.Image к PIL.Image (RGB)."""
+        if isinstance(result, Image.Image):
             return result
-        else:
+        if not isinstance(result, np.ndarray):
             raise TypeError("Segmentation result must be numpy.ndarray or PIL.Image")
 
+        if result.dtype in (np.float32, np.float64):
+            arr = np.clip(result, 0.0, 1.0) * 255.0
+            arr = arr.astype(np.uint8)
+        elif result.dtype == np.uint8:
+            arr = result
+        else:
+            arr = result.astype(np.uint8)
+
+        if arr.ndim == 2:
+            arr = np.stack([arr] * 3, axis=-1)
+        elif arr.ndim == 3 and arr.shape[2] == 1:
+            arr = np.concatenate([arr] * 3, axis=-1)
+        elif arr.ndim == 3 and arr.shape[2] != 3:
+            raise ValueError(f"Unexpected channel dimension: {arr.shape[2]}")
+
+        return Image.fromarray(arr)
+
+    def _get_segmented_image(self, img):
+        """Сегментирует одиночное PIL.Image."""
+        return self._segm_to_pil(self.segmentation(img))
+
     # ----------------------------------------------------------------------
-    # Обработка классификации
+    # Обработка классификации (одиночное изображение)
     # ----------------------------------------------------------------------
     def get_probs_and_active(self, img):
         result = self.classification(img)
         if isinstance(result, tuple) and len(result) == 2:
-            probs, labels = result
+            probs, _ = result
         else:
             probs = result
-            labels = None
-
-        if labels is None:
-            labels = (np.array(probs) >= self.threshold).astype(int)
-
-        active = [self.classes[i] for i, val in enumerate(labels) if val == 1]
-        return np.array(probs), active
+        probs = np.asarray(probs)
+        detected = probs >= self.threshold
+        active = [self.classes[i] for i, val in enumerate(detected) if val]
+        return probs, active
 
     # ----------------------------------------------------------------------
-    # Обработка и сохранение одного изображения
+    # Батч-классификация списка файлов
     # ----------------------------------------------------------------------
-    def process_and_save_image(self, img_path, active_classes, save_dir):
+    def _batch_classify(self, image_paths, progress=None):
+        """
+        Классифицирует список путей батчами. Возвращает (labels, probs_list),
+        где labels[i] – список активных классов, probs_list[i] – np.ndarray.
+        """
+        n = len(image_paths)
+        labels = [[] for _ in range(n)]
+        probs_list = [np.zeros(len(self.classes), dtype=np.float32) for _ in range(n)]
+
+        bs = self.batch_size
+        processed = 0
+        for batch_start in range(0, n, bs):
+            if progress is not None and progress.wasCanceled():
+                return labels[:processed], probs_list[:processed]
+
+            batch_paths = image_paths[batch_start:batch_start + bs]
+            batch_imgs = []
+            batch_indices = []
+            for offset, fpath in enumerate(batch_paths):
+                idx = batch_start + offset
+                try:
+                    batch_imgs.append(PILopen(fpath))
+                    batch_indices.append(idx)
+                except Exception as e:
+                    print(f"Ошибка открытия файла {fpath}: {e}")
+
+            if batch_imgs:
+                try:
+                    probs_batch, _ = self.classification(batch_imgs)
+                    probs_batch = np.asarray(probs_batch)
+                    for k, idx in enumerate(batch_indices):
+                        probs = probs_batch[k]
+                        detected = probs >= self.threshold
+                        labels[idx] = [self.classes[i]
+                                       for i, val in enumerate(detected) if val]
+                        probs_list[idx] = probs
+                except Exception as e:
+                    print(f"Ошибка классификации батча: {e}")
+
+            processed = min(batch_start + bs, n)
+            if progress is not None:
+                progress.setValue(processed)
+                QCoreApplication.processEvents()
+
+        return labels, probs_list
+
+    # ----------------------------------------------------------------------
+    # Батч-сегментация и сохранение
+    # ----------------------------------------------------------------------
+    def _batch_save_segmented(self, image_paths, labels, progress=None):
+        bs = self.batch_size
+        n = len(image_paths)
+        saved = 0
+
+        for batch_start in range(0, n, bs):
+            if progress is not None and progress.wasCanceled():
+                break
+
+            batch_paths = image_paths[batch_start:batch_start + bs]
+            batch_labels = labels[batch_start:batch_start + bs]
+
+            batch_imgs = []
+            valid_offsets = []
+            for off, fpath in enumerate(batch_paths):
+                if fpath in self.segmented_paths:
+                    continue
+                try:
+                    batch_imgs.append(PILopen(fpath))
+                    valid_offsets.append(off)
+                except Exception as e:
+                    print(f"Ошибка открытия файла {fpath}: {e}")
+
+            if batch_imgs:
+                try:
+                    segm_results = self.segmentation(batch_imgs)
+                except Exception as e:
+                    print(f"Ошибка сегментации батча: {e}")
+                    segm_results = None
+
+                if segm_results is not None:
+                    # Приводим к списку одиночных результатов
+                    if isinstance(segm_results, np.ndarray) and segm_results.ndim == 4:
+                        segm_list = [segm_results[i] for i in range(segm_results.shape[0])]
+                    elif isinstance(segm_results, list):
+                        segm_list = segm_results
+                    elif isinstance(segm_results, Image.Image):
+                        segm_list = [segm_results]
+                    elif isinstance(segm_results, np.ndarray):
+                        segm_list = [segm_results]
+                    else:
+                        segm_list = list(segm_results)
+
+                    for k, off in enumerate(valid_offsets):
+                        if k >= len(segm_list):
+                            break
+                        path = batch_paths[off]
+                        active = batch_labels[off]
+                        if self._save_single_segmented(path, active, segm_list[k]):
+                            saved += 1
+
+            processed = min(batch_start + bs, n)
+            if progress is not None:
+                progress.setValue(processed)
+                QCoreApplication.processEvents()
+
+        return saved
+
+    def _save_single_segmented(self, img_path, active_classes, segm_result):
+        """Сохраняет один сегментированный результат под именем с суффиксом классов."""
         try:
             invalid_chars = re.compile(r'[<>:"/\\|?*]')
             base_name = os.path.basename(img_path)
@@ -220,21 +335,34 @@ class ImageViewer(QMainWindow):
                 suffix = "_none"
 
             new_file_name = f"{file_name}{suffix}{file_ext}"
-            save_path = os.path.join(save_dir, new_file_name)
+            save_path = os.path.join(self.save_dir, new_file_name)
 
-            if not os.path.exists(save_path):
-                image = Image.open(img_path)
-                segm_image = self._get_segmented_image(image)
-                qimage = ImageQt.ImageQt(segm_image)
-                qimage.save(save_path)
+            if os.path.exists(save_path):
+                self.segmented_paths[img_path] = save_path
+                return save_path
 
+            segm_image = self._segm_to_pil(segm_result)
+            segm_image.save(save_path)
+            self.segmented_paths[img_path] = save_path
             return save_path
+        except Exception as e:
+            print(f"Ошибка сохранения {img_path}: {e}")
+            return None
+
+    # ----------------------------------------------------------------------
+    # Обработка и сохранение одного изображения (используется в save_images и т.п.)
+    # ----------------------------------------------------------------------
+    def process_and_save_image(self, img_path, active_classes, save_dir):
+        try:
+            image = Image.open(img_path)
+            segm_image = self._get_segmented_image(image)
+            return self._save_single_segmented(img_path, active_classes, segm_image)
         except Exception as e:
             print(f"Ошибка обработки изображения {img_path}: {e}")
             return None
 
     # ----------------------------------------------------------------------
-    # Открытие папки и одного изображения (без изменений, но с использованием _get_segmented_image)
+    # Открытие папки
     # ----------------------------------------------------------------------
     def open_folder(self):
         folder_path = QFileDialog.getExistingDirectory(
@@ -261,44 +389,37 @@ class ImageViewer(QMainWindow):
             self.status_bar.showMessage("В папке не найдено изображений")
             return
 
-        progress = QProgressDialog("Обработка изображений...", "Отмена", 0, total_images, self)
+        progress = QProgressDialog("Классификация изображений...", "Отмена",
+                                   0, total_images, self)
         progress.setWindowTitle("Обработка изображений")
         progress.setWindowModality(Qt.WindowModal)
         progress.setValue(0)
 
-        labels = []
-        probs_list = []
-        processed = 0
-        for fpath in image_paths:
-            try:
-                img = PILopen(fpath)
-                probs, active = self.get_probs_and_active(img)
-                labels.append(active)
-                probs_list.append(probs)
+        labels, probs_list = self._batch_classify(image_paths, progress)
 
-                if self.save_dir:
-                    segm_path = self.process_and_save_image(fpath, active, self.save_dir)
-                    if segm_path:
-                        self.segmented_paths[fpath] = segm_path
-            except Exception as e:
-                print(f"Ошибка обработки файла {fpath}: {e}")
-                labels.append([])
-                probs_list.append(np.zeros(len(self.classes)))
+        if progress.wasCanceled():
+            image_paths = image_paths[:len(labels)]
+            progress.close()
+            if not image_paths:
+                self.status_bar.showMessage("Обработка отменена")
+                return
+        else:
+            progress.close()
 
-            processed += 1
-            progress.setValue(processed)
-            QCoreApplication.processEvents()
-            if progress.wasCanceled():
-                image_paths = image_paths[:processed]
-                labels = labels[:processed]
-                probs_list = probs_list[:processed]
-                break
-
-        progress.close()
-
-        if not image_paths:
-            self.status_bar.showMessage("Не загружено изображений")
-            return
+        # Пакетное сохранение сегментированных изображений
+        if self.save_dir:
+            progress_save = QProgressDialog(
+                "Сохранение сегментированных изображений...",
+                "Отмена", 0, len(image_paths), self
+            )
+            progress_save.setWindowTitle("Сохранение изображений")
+            progress_save.setWindowModality(Qt.WindowModal)
+            progress_save.setValue(0)
+            saved = self._batch_save_segmented(image_paths, labels, progress_save)
+            progress_save.close()
+            self.status_bar.showMessage(
+                f"Сохранено сегментированных изображений: {saved}"
+            )
 
         self.set_image_list(image_paths, labels, probs_list)
 
@@ -329,7 +450,10 @@ class ImageViewer(QMainWindow):
         self.probs_list = probs_list
         self.current_index = 0
 
-        self.status_bar.showMessage(f"Загружено изображений: {len(self.image_paths)}")
+        self.status_bar.showMessage(
+            f"Загружено изображений: {len(self.image_paths)} | "
+            f"Текущее: {os.path.basename(image_paths[0]) if image_paths else '—'}"
+        )
 
         self.prev_button.setEnabled(len(self.image_paths) > 1)
         self.next_button.setEnabled(len(self.image_paths) > 1)
@@ -337,7 +461,7 @@ class ImageViewer(QMainWindow):
         self.show_image()
 
     # ----------------------------------------------------------------------
-    # Выбор папки для сохранения и обработка существующих
+    # Выбор папки для сохранения
     # ----------------------------------------------------------------------
     def select_save_directory(self):
         save_dir = QFileDialog.getExistingDirectory(
@@ -363,27 +487,18 @@ class ImageViewer(QMainWindow):
             return
 
         total = len(self.image_paths)
-        progress = QProgressDialog("Обработка существующих изображений...", "Отмена", 0, total, self)
+        progress = QProgressDialog("Обработка существующих изображений...",
+                                   "Отмена", 0, total, self)
         progress.setWindowTitle("Обработка изображений")
         progress.setWindowModality(Qt.WindowModal)
         progress.setValue(0)
 
-        for i, img_path in enumerate(self.image_paths):
-            if progress.wasCanceled():
-                break
-            if img_path not in self.segmented_paths:
-                active = self.labels[i]
-                segm_path = self.process_and_save_image(img_path, active, self.save_dir)
-                if segm_path:
-                    self.segmented_paths[img_path] = segm_path
-            progress.setValue(i + 1)
-            QCoreApplication.processEvents()
-
+        saved = self._batch_save_segmented(self.image_paths, self.labels, progress)
         progress.close()
-        self.status_bar.showMessage(f"Обработано изображений: {len(self.segmented_paths)}")
+        self.status_bar.showMessage(f"Обработано изображений: {len(self.segmented_paths)} (сохранено {saved})")
 
     # ----------------------------------------------------------------------
-    # Сохранение всех изображений
+    # Сохранение всех изображений (по кнопке)
     # ----------------------------------------------------------------------
     def save_images(self):
         if not self.save_dir:
@@ -394,7 +509,8 @@ class ImageViewer(QMainWindow):
             return
 
         total = len(self.image_paths)
-        progress = QProgressDialog("Сохранение изображений...", "Отмена", 0, total, self)
+        progress = QProgressDialog("Сохранение изображений...", "Отмена",
+                                   0, total, self)
         progress.setWindowTitle("Сохранение изображений")
         progress.setWindowModality(Qt.WindowModal)
         progress.setValue(0)
@@ -412,47 +528,79 @@ class ImageViewer(QMainWindow):
             if file_mode == "a":
                 list_file.write("\n" + "-" * 40 + "\n")
 
-            for i, img_path in enumerate(self.image_paths):
+            bs = self.batch_size
+            for batch_start in range(0, total, bs):
                 if progress.wasCanceled():
                     break
 
-                progress.setValue(i)
-                progress.setLabelText(f"Обработка {i+1}/{total}")
-                QCoreApplication.processEvents()
+                batch_paths = self.image_paths[batch_start:batch_start + bs]
+                batch_labels = self.labels[batch_start:batch_start + bs]
 
-                active = self.labels[i]
-                base_name = os.path.basename(img_path)
-                file_name, file_ext = os.path.splitext(base_name)
-
-                if active:
-                    clean_classes = [invalid_chars.sub('_', c) for c in active]
-                    suffix = "_" + "_".join(clean_classes)
-                else:
-                    suffix = "_none"
-
-                new_file_name = f"{file_name}{suffix}{file_ext}"
-                save_path = os.path.join(self.save_dir, new_file_name)
-
-                if os.path.exists(save_path):
-                    skipped_count += 1
-                    self.segmented_paths[img_path] = save_path
-                    continue
-
-                list_file.write(new_file_name + "\n")
-
-                try:
-                    image = Image.open(img_path)
-                    segm_image = self._get_segmented_image(image)
-                    qimage = ImageQt.ImageQt(segm_image)
-                    if qimage.save(save_path):
-                        saved_count += 1
-                        self.segmented_paths[img_path] = save_path
-                    else:
+                batch_imgs = []
+                offsets = []
+                for off, p in enumerate(batch_paths):
+                    try:
+                        batch_imgs.append(PILopen(p))
+                        offsets.append(off)
+                    except Exception as e:
+                        print(f"Ошибка открытия {p}: {e}")
                         skipped_count += 1
-                except Exception as e:
-                    print(e)
-                    skipped_count += 1
 
+                if batch_imgs:
+                    try:
+                        segm_results = self.segmentation(batch_imgs)
+                    except Exception as e:
+                        print(f"Ошибка сегментации батча: {e}")
+                        segm_results = None
+
+                    if segm_results is not None:
+                        if isinstance(segm_results, np.ndarray) and segm_results.ndim == 4:
+                            segm_list = [segm_results[i] for i in range(segm_results.shape[0])]
+                        elif isinstance(segm_results, list):
+                            segm_list = segm_results
+                        elif isinstance(segm_results, Image.Image):
+                            segm_list = [segm_results]
+                        elif isinstance(segm_results, np.ndarray):
+                            segm_list = [segm_results]
+                        else:
+                            segm_list = list(segm_results)
+
+                        for k, off in enumerate(offsets):
+                            if k >= len(segm_list):
+                                break
+                            img_path = batch_paths[off]
+                            active = batch_labels[off]
+                            base_name = os.path.basename(img_path)
+                            file_name, file_ext = os.path.splitext(base_name)
+
+                            if active:
+                                clean_classes = [invalid_chars.sub('_', c) for c in active]
+                                suffix = "_" + "_".join(clean_classes)
+                            else:
+                                suffix = "_none"
+
+                            new_file_name = f"{file_name}{suffix}{file_ext}"
+                            save_path = os.path.join(self.save_dir, new_file_name)
+
+                            if os.path.exists(save_path):
+                                skipped_count += 1
+                                self.segmented_paths[img_path] = save_path
+                                continue
+
+                            list_file.write(new_file_name + "\n")
+
+                            try:
+                                segm_image = self._segm_to_pil(segm_list[k])
+                                segm_image.save(save_path)
+                                saved_count += 1
+                                self.segmented_paths[img_path] = save_path
+                            except Exception as e:
+                                print(e)
+                                skipped_count += 1
+
+                processed = min(batch_start + bs, total)
+                progress.setValue(processed)
+                progress.setLabelText(f"Обработка {processed}/{total}")
                 QCoreApplication.processEvents()
 
             if not progress.wasCanceled():
@@ -466,7 +614,8 @@ class ImageViewer(QMainWindow):
         QMessageBox.information(
             self,
             "Сохранение завершено",
-            f"{message}\nФайл списка: image_list.txt\nРежим: {'Дозапись' if file_mode == 'a' else 'Новый файл'}"
+            f"{message}\nФайл списка: image_list.txt\n"
+            f"Режим: {'Дозапись' if file_mode == 'a' else 'Новый файл'}"
         )
 
     # ----------------------------------------------------------------------
@@ -476,13 +625,21 @@ class ImageViewer(QMainWindow):
         if not (0 <= self.current_index < len(self.image_paths)):
             self.image_label.setText("Изображение не доступно")
             self.image_segm.setText("Изображение не доступно")
+            self.filename_label.setText("")
             self.caption_label.setText("")
             self.prediction_table.clearContents()
+            self.setWindowTitle("Просмотр изображений (Multi‑label)")
             return
 
         img_path = self.image_paths[self.current_index]
-        active_classes = self.labels[self.current_index] if self.current_index < len(self.labels) else []
-        probs = self.probs_list[self.current_index] if self.current_index < len(self.probs_list) else None
+        active_classes = self.labels[self.current_index] \
+            if self.current_index < len(self.labels) else []
+        probs = self.probs_list[self.current_index] \
+            if self.current_index < len(self.probs_list) else None
+
+        img_name = os.path.basename(img_path)
+        self.filename_label.setText(f" {img_name}")
+        self.filename_label.setToolTip(img_path)
 
         # Оригинал
         pixmap = QPixmap(img_path)
@@ -523,16 +680,20 @@ class ImageViewer(QMainWindow):
             self.image_segm.setText("Ошибка сегментации")
 
         # Подпись
-        if active_classes:
-            caption = "Классы: " + ", ".join(active_classes)
-        else:
-            caption = "Нет дефектов"
+        caption = "Классы: " + ", ".join(active_classes) if active_classes else "Нет дефектов"
         self.caption_label.setText(caption)
 
         # Таблица
         self.update_prediction_table(probs)
 
-        self.setWindowTitle(f"Просмотр изображений - [{self.current_index+1}/{len(self.image_paths)}]")
+        self.setWindowTitle(
+            f"Просмотр изображений - [{self.current_index+1}/{len(self.image_paths)}] - {img_name}"
+        )
+
+        self.status_bar.showMessage(
+            f"[{self.current_index+1}/{len(self.image_paths)}] {img_name} | "
+            f"{'Классы: ' + ', '.join(active_classes) if active_classes else 'Нет дефектов'}"
+        )
 
     # ----------------------------------------------------------------------
     # Обновление таблицы
@@ -558,8 +719,7 @@ class ImageViewer(QMainWindow):
             color_widget.setFixedSize(24, 24)
             self.prediction_table.setCellWidget(i, 1, color_widget)
 
-            prob_str = f"{prob:.2f}"
-            item_prob = QTableWidgetItem(prob_str)
+            item_prob = QTableWidgetItem(f"{prob:.2f}")
             item_prob.setTextAlignment(Qt.AlignCenter)
             self.prediction_table.setItem(i, 2, item_prob)
 
@@ -588,22 +748,15 @@ class ImageViewer(QMainWindow):
             self.show_image()
 
     # ----------------------------------------------------------------------
-    # Изменение порога
+    # Изменение порога (без ползунка)
     # ----------------------------------------------------------------------
-    def on_threshold_changed(self, value):
-        self.threshold = value / 100.0
-        self.threshold_label.setText(f"Порог: {self.threshold:.2f}")
-        self.threshold_edit.setText(f"{self.threshold:.2f}")
-        if self.image_paths:
-            self.reclassify_all()
-
     def on_threshold_entered(self):
         try:
-            val = float(self.threshold_edit.text())
+            val = float(self.threshold_edit.text().replace(",", "."))
             if 0.0 <= val <= 1.0:
                 self.threshold = val
-                self.threshold_slider.setValue(int(val * 100))
                 self.threshold_label.setText(f"Порог: {val:.2f}")
+                self.threshold_edit.setText(f"{val:.2f}")
                 if self.image_paths:
                     self.reclassify_all()
             else:
@@ -617,8 +770,11 @@ class ImageViewer(QMainWindow):
 
         new_labels = []
         for probs in self.probs_list:
-            labels = (probs >= self.threshold).astype(int)
-            active = [self.classes[i] for i, val in enumerate(labels) if val == 1]
+            if probs is None:
+                new_labels.append([])
+                continue
+            detected = probs >= self.threshold
+            active = [self.classes[i] for i, val in enumerate(detected) if val]
             new_labels.append(active)
 
         self.labels = new_labels
@@ -637,11 +793,11 @@ class ImageViewer(QMainWindow):
 # ----------------------------------------------------------------------
 # Функция запуска
 # ----------------------------------------------------------------------
-def app_run(classes, classification, segmentation):
+def app_run(classes, classification, segmentation, batch_size=32):
     app = QApplication(sys.argv)
 
     try:
-        window = ImageViewer(classes, classification, segmentation)
+        window = ImageViewer(classes, classification, segmentation, batch_size=batch_size)
         window.show()
         return app.exec()
     except Exception as e:
@@ -660,6 +816,8 @@ def app_run(classes, classification, segmentation):
 if __name__ == "__main__":
     config = Config.from_json('config.json')
 
+    BATCH_SIZE = 32  # при необходимости можно взять из config
+
     classifier_config = {
         'device': config.device,
         'num_classes': config.num_classes,
@@ -672,9 +830,10 @@ if __name__ == "__main__":
         'transform_std': config.transform_std,
         'threshold': config.threshold,
         'class_names': config.class_names,
+        'batch_size': BATCH_SIZE,
     }
     classifier_func, class_names = return_classifier(classifier_config)
-    segmenter_func = return_segmenter()   # возвращает numpy-массив
+    segmenter_func = return_segmenter({'batch_size': BATCH_SIZE})
 
-    exit_code = app_run(class_names, classifier_func, segmenter_func)
+    exit_code = app_run(class_names, classifier_func, segmenter_func, batch_size=BATCH_SIZE)
     sys.exit(exit_code)

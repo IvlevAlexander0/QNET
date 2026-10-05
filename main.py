@@ -20,7 +20,7 @@ from utils import *
 
 def main(config_path='config.json'):
     config = Config.from_json(config_path)
-    original_resume_from = config.resume_from  # <-- сохраняем
+    original_resume_from = config.resume_from
 
     if original_resume_from and os.path.exists(original_resume_from):
         run_dir = original_resume_from
@@ -29,7 +29,6 @@ def main(config_path='config.json'):
             resume_config = Config.from_json(resume_config_path)
             for key, value in vars(resume_config).items():
                 setattr(config, key, value)
-            # Восстанавливаем resume_from, чтобы он не был затерт
             config.resume_from = original_resume_from
             run_dir, logger = setup_logging(config, run_dir=run_dir, config_path=resume_config_path)
             logger.info(f"Resuming from {config.resume_from}")
@@ -77,8 +76,8 @@ def main(config_path='config.json'):
     val_dataset = SeverstalDataset(val_paths, val_labels, data_transform['val'])
     test_dataset = SeverstalDataset(test_paths, test_labels, data_transform['test'])
 
-    num_workers = getattr(config, 'num_workers', 4)
-    prefetch_factor = getattr(config, 'prefetch_factor', 2)
+    # num_workers = getattr(config, 'num_workers', 4)
+    # prefetch_factor = getattr(config, 'prefetch_factor', 2)
 
     trainloader = DataLoader(
         train_dataset, batch_size=config.batch_size, shuffle=True,
@@ -155,7 +154,7 @@ def main(config_path='config.json'):
     loss_fn = nn.BCELoss(weight=class_weights.to(config.device))
     #loss_fn = FocalLoss(class_weights.to(config.device))
     optimizer = torch.optim.Adam(model.parameters(), lr=config.initial_lr, weight_decay=config.w_decay)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=8, gamma=0.5)
 
     # Обучение
     start_epoch = 0
@@ -168,7 +167,6 @@ def main(config_path='config.json'):
             start_epoch, best_val_acc, best_val_f1, history = load_checkpoint(
                 run_dir, model, optimizer, scheduler
             )
-            # Принудительно перемещаем модель на device (если загружали на cpu)
             model = model.to(config.device)
         except FileNotFoundError as e:
             logger.warning(f"Checkpoint not found: {e}. Starting from scratch.")

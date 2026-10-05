@@ -44,6 +44,12 @@
 <body>
     <h1>Результат обработки изображения</h1>
 
+    {% if filename %}
+    <p style="text-align:center; color:#333; font-size:15px;">
+        Файл: <b>{{ filename }}</b>
+    </p>
+    {% endif %}
+
     <p class="success">{{ message }}</p>
 
     <div class="images-container">

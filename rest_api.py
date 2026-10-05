@@ -1,10 +1,9 @@
 import os
-import logging
+import warnings
 import numpy as np
 from PIL import Image
 import io
 import base64
-import warnings
 warnings.filterwarnings('ignore')
 
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException
@@ -17,10 +16,6 @@ from torch.cuda import is_available
 from inference.classifier import return_classifier
 from inference.segmenter import return_segmenter
 from config import Config
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("rest_api")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
@@ -62,7 +57,6 @@ classifier_config = {
 try:
     classifier, class_names = return_classifier(classifier_config)
 except Exception as e:
-    logger.critical(f"Failed to initialize classifier: {e}", exc_info=True)
     raise RuntimeError("Classifier initialization failed") from e
 
 segmenter = return_segmenter()
@@ -93,21 +87,17 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         if len(image_data) == 0:
-            logger.warning("Empty file uploaded")
             context = {"error": "Загружен пустой файл", "base_url": base_url}
             return render_template(request, "upload.html", context, status_code=400)
         if len(image_data) > MAX_FILE_SIZE:
-            logger.warning(f"File too large: {len(image_data)} bytes")
             context = {"error": f"Файл превышает максимальный размер {MAX_FILE_SIZE // (1024*1024)} МБ", "base_url": base_url}
             return render_template(request, "upload.html", context, status_code=413)
     except Exception as e:
-        logger.error(f"Error reading file: {e}", exc_info=True)
         context = {"error": "Ошибка чтения файла", "base_url": base_url}
         return render_template(request, "upload.html", context, status_code=400)
 
     # 2. Проверка MIME-типа (не обязательная, но дополнительная)
     if not file.content_type.startswith('image/'):
-        logger.warning(f"Invalid content type: {file.content_type}")
         context = {"error": "Файл должен быть изображением", "base_url": base_url}
         return render_template(request, "upload.html", context, status_code=400)
 
@@ -117,7 +107,6 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         # Принудительно загружаем данные, чтобы убедиться, что файл не повреждён
         image.load()
     except Exception as e:
-        logger.warning(f"Invalid image file: {e}")
         context = {"error": "Некорректный формат изображения или файл повреждён", "base_url": base_url}
         return render_template(request, "upload.html", context, status_code=400)
 
@@ -155,7 +144,6 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         return render_template(request, "result.html", context)
 
     except Exception as e:
-        logger.error(f"Processing error: {e}", exc_info=True)
         context = {"error": f"Ошибка обработки: {str(e)}", "base_url": base_url}
         return render_template(request, "upload.html", context, status_code=500)
 
@@ -176,5 +164,4 @@ async def download_file(request: Request):
             headers={"Content-Disposition": f"attachment; filename=segmentation_{filename}"}
         )
     except Exception as e:
-        logger.error(f"Download error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Ошибка при скачивании файла")

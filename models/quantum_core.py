@@ -8,52 +8,65 @@ from qiskit.primitives import BaseSamplerV2, PrimitiveResult, PubResult
 from qiskit.primitives.containers import DataBin, BitArray
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV2
-# from qiskit_ibm_runtime.fake_provider import FakeSherbrooke
+from qiskit_ibm_runtime.fake_provider import FakeSherbrooke
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_machine_learning.connectors import TorchConnector
 from qiskit_machine_learning.neural_networks import SamplerQNN
 
-try:
-    from octillion.client import Client
-except ImportError:
-    Client = None
+from models.encoding import create_encoding
+from models.ansatz import create_ansatz
 
-class OctillionSamplerV2(BaseSamplerV2):
-    def __init__(self, backend, client=None, shots=2048, project="QNN_job", transpile_before_bind=False):
+class NoisySamplerV2(BaseSamplerV2):
+    def __init__(self, backend, shots=2048, transpile_before_bind=False, noise_model=None):
         super().__init__()
-        self._backend = backend
-        self._client = client
-        self._shots = shots
-        self._project = project
-        self._transpile_before_bind = transpile_before_bind
-        # Определяем бэкенд для транспиляции
-        if hasattr(backend, 'basis_gates') and client is not None:
-            self._backend_tr = client.local(backend.name) if hasattr(backend, 'name') else backend
+
+        # Запоминаем "настоящий" целевой бэкенд для транспиляции
+        self._target_backend = backend
+
+        # Для исполнения используем AerSimulator с шумом
+        if isinstance(backend, AerSimulator):
+            self._backend = backend
         else:
-            self._backend_tr = backend
-        # Кеш транспилированных схем
-        self._transpiled_cache = {}  # key: хеш схемы, value: транспилированная схема
+            self._backend = AerSimulator.from_backend(backend)
+
+        if noise_model is not None:
+            self._backend.set_options(noise_model=noise_model)
+
+        self._shots = shots
+        self._transpile_before_bind = transpile_before_bind
+        self._transpiled_cache = {}
+
+        # Pass manager целимся в ИСХОДНЫЙ бэкенд (у него корректный basis_gates),
+        # а не в AerSimulator-обёртку.
+        pm_target = backend  # <-- ключевой момент
+        try:
+            self._pm = generate_preset_pass_manager(
+                optimization_level=3, backend=pm_target
+            )
+        except Exception:
+            self._pm = None
 
     def _get_transpiled_circuit(self, circuit):
-        """Возвращает транспилированную схему, используя кеш."""
-        # Используем хеш от строкового представления (для простоты) или от параметров
-        # Более надёжно: circuit.hash() (если доступно) или circuit.__hash__?
-        # В Qiskit можно использовать circuit.qasm() для получения строки.
-        # Но для производительности лучше использовать id(circuit), если схема не меняется.
-        # Так как схема может быть изменена (например, добавлены параметры), используем комбинацию id и параметров.
-        # Для простоты используем id(circuit), т.к. в нашем случае схема создаётся один раз.
         cache_key = id(circuit)
         if cache_key not in self._transpiled_cache:
-            if hasattr(self._backend, 'basis_gates'):
-                pm = generate_preset_pass_manager(optimization_level=3, backend=self._backend_tr)
-                transpiled = pm.run(circuit)
-            else:
-                transpiled = circuit  # если нет базовых гейтов, оставляем как есть
+            transpiled = self._pm.run(circuit) if self._pm is not None else circuit
             self._transpiled_cache[cache_key] = transpiled
         return self._transpiled_cache[cache_key]
+    
+    def run(self, pubs, *, shots=None):
+        """
+        Публичный API сэмплера. Возвращает NoisySamplerJob,
+        который лениво вычислит результат по .result().
+        """
+        return NoisySamplerJob(
+            sampler=self,
+            pubs=pubs,
+            shots=shots if shots is not None else self._shots
+        )
 
-    def _run(self, pubs, shots, project):
+    def _run(self, pubs, shots):
         results = []
+
         for pub in pubs:
             circuit = pub[0]
             parameter_values = pub[1]
@@ -64,21 +77,21 @@ class OctillionSamplerV2(BaseSamplerV2):
                 param_batch = np.asarray(parameter_values)
                 if param_batch.ndim == 1:
                     param_batch = param_batch.reshape(1, -1)
-                elif param_batch.ndim == 2:
-                    pass
-                else:
-                    raise ValueError(f"parameter_values has invalid shape {param_batch.ndim}")
+                elif param_batch.ndim != 2:
+                    raise ValueError(
+                        f"parameter_values has invalid shape {param_batch.ndim}"
+                    )
 
             # Получаем транспилированную схему из кеша (если требуется)
             if self._transpile_before_bind:
                 transpiled_circuit = self._get_transpiled_circuit(circuit)
             else:
-                transpiled_circuit = None  # будет транспилироваться после привязки
+                transpiled_circuit = None
 
             all_counts = []
+
             for params_row in param_batch:
                 if self._transpile_before_bind:
-                    # Используем кешированную транспилированную схему и привязываем параметры
                     base_circ = transpiled_circuit
                     if param_batch.size > 0:
                         param_dict = dict(zip(circuit.parameters, params_row))
@@ -86,27 +99,23 @@ class OctillionSamplerV2(BaseSamplerV2):
                     else:
                         bound_circuit = base_circ
                 else:
-                    # Привязываем параметры к оригинальной схеме, затем транспилируем
                     if param_batch.size > 0:
                         param_dict = dict(zip(circuit.parameters, params_row))
                         bound_circuit = circuit.assign_parameters(param_dict)
                     else:
                         bound_circuit = circuit
-                    # Транспилируем (без кеша, т.к. схема меняется)
-                    if hasattr(self._backend, 'basis_gates'):
-                        pm = generate_preset_pass_manager(optimization_level=3, backend=self._backend_tr)
-                        bound_circuit = pm.run(bound_circuit)
 
-                # Выполняем на бэкенде
-                if hasattr(self._backend, 'run') and callable(self._backend.run):
-                    job = self._backend.run(bound_circuit, shots=shots, project=project)
-                else:
-                    raise RuntimeError("Backend does not support run()")
+                    if self._pm is not None:
+                        bound_circuit = self._pm.run(bound_circuit)
 
-                counts = self._wait_for_result(job)
+                # Запуск на шумном бэкенде Qiskit Aer
+                job = self._backend.run(bound_circuit, shots=shots)
+                counts = job.result().get_counts()
                 all_counts.append(counts)
 
-            bitarray = BitArray.from_counts(all_counts, num_bits=circuit.num_clbits)
+            bitarray = BitArray.from_counts(
+                all_counts, num_bits=circuit.num_clbits
+            )
             data_bin = DataBin(meas=bitarray)
             pub_result = PubResult(data_bin, metadata={"shots": shots})
             results.append(pub_result)
@@ -114,37 +123,44 @@ class OctillionSamplerV2(BaseSamplerV2):
         return PrimitiveResult(results)
 
 
-class OctillionSamplerJob:
-    """Wrapper for Octillion job."""
-    def __init__(self, sampler, pubs, shots, project):
+class NoisySamplerJob:
+    """Wrapper for noisy sampler job."""
+
+    def __init__(self, sampler, pubs, shots):
         self._sampler = sampler
         self._pubs = pubs
         self._shots = shots
-        self._project = project
         self._result = None
 
     def result(self):
         if self._result is None:
-            self._result = self._sampler._run(self._pubs, self._shots, self._project)
+            self._result = self._sampler._run(
+                self._pubs, self._shots
+            )
         return self._result
 
-    def status(self):
-        return "COMPLETE"
 
-
-def create_qnn(feature_map, ansatz, shots, backend_type='aer_simulator',
-               octillion_token=None, octillion_chip=None, transpile_before=True):
+def create_qnn(
+    feature_map,
+    ansatz,
+    shots,
+    backend_type='noisy_simulator',
+    backend=FakeSherbrooke(),
+    noise_model=None,
+    transpile_before=True,
+):
     """
     Создаёт SamplerQNN на основе готовых схем feature_map и ansatz.
 
     Args:
-        feature_map (QuantumCircuit): параметризованная схема для кодирования входных данных.
-        ansatz (QuantumCircuit): параметризованная схема для вариационной части.
+        feature_map (QuantumCircuit): параметризованная схема кодирования входных данных.
+        ansatz (QuantumCircuit): параметризованная вариационная схема.
         shots (int): количество измерений.
-        backend_type (str): тип бэкенда ('aer_simulator', 'fake_sherbrooke', 'octillion_remote', 'octillion_local').
-        octillion_token (str): токен для Octillion (если нужен).
-        octillion_chip (str): имя чипа Octillion.
-        transpile_before (bool): транспилировать до привязки параметров.
+        backend_type (str): 'aer_simulator' | 'noisy_simulator' | 'custom'.
+        backend (Backend | AerSimulator | None): конкретный бэкенд Qiskit.
+        noise_model (NoiseModel | None): шумовая модель Aer (для noisy/custom).
+        transpile_before (bool): транспилировать до привязки параметров
+                                 (для NoisySamplerV2).
 
     Returns:
         SamplerQNN
@@ -159,32 +175,28 @@ def create_qnn(feature_map, ansatz, shots, backend_type='aer_simulator',
         sampler = SamplerV2(mode=backend, options={"default_shots": shots})
         pm = generate_preset_pass_manager(optimization_level=3, backend=backend)
         qc_isa = pm.run(qc)
-    # elif backend_type == 'fake_sherbrooke':
-    #     backend = FakeSherbrooke()
-    #     sampler = SamplerV2(mode=backend, options={"default_shots": shots})
-    #     pm = generate_preset_pass_manager(optimization_level=3, backend=backend)
-    #     qc_isa = pm.run(qc)
-    elif backend_type in ['octillion_remote', 'octillion_local']:
-        if octillion_token is None:
-            raise ValueError("Octillion token required")
-        client = Client(octillion_token)
-        if backend_type == 'octillion_remote':
-            backend = client.remote(octillion_chip)
-        else:
-            backend = client.local(octillion_chip)
-        sampler = OctillionSamplerV2(
-            backend, client=client, shots=shots,
-            project="QNN_training", transpile_before_bind=transpile_before
+
+    elif backend_type == 'noisy_simulator':
+        # Шумный симулятор — используем NoisySamplerV2,
+        # который сам делает транспиляцию под целевой backend
+        backend = backend if backend is not None else AerSimulator()
+        sampler = NoisySamplerV2(
+            backend,
+            shots=shots,
+            transpile_before_bind=transpile_before,
+            noise_model=noise_model,
         )
-        qc_isa = qc
+        qc_isa = qc  # транспиляция внутри сэмплера
+
     else:
         raise ValueError(f"Unknown backend_type: {backend_type}")
 
     qnn = SamplerQNN(
-        circuit=qc_isa, sampler=sampler,
+        circuit=qc_isa,
+        sampler=sampler,
         input_params=feature_map.parameters,
         weight_params=ansatz.parameters,
-        input_gradients=True
+        input_gradients=True,
     )
     return qnn
 
@@ -196,8 +208,10 @@ class Q_Net(nn.Module):
     """
     def __init__(self, qnn, num_classes, input_transform=None, output_transform=None):
         super().__init__()
+        # Запоминаем форму выхода ДО обёртки в TorchConnector
+        self.output_shape = tuple(qnn.output_shape)
         self.qnn = TorchConnector(qnn)
-        self.fc_out = nn.Linear(qnn.output_shape[0], num_classes)
+        self.fc_out = nn.Linear(self.output_shape[0], num_classes)
         self.input_transform = input_transform
         self.output_transform = output_transform
 
@@ -208,3 +222,30 @@ class Q_Net(nn.Module):
         if self.output_transform is not None:
             x = self.fc_out(x)
         return x
+
+
+def build_quantum_layer(num_features, num_classes, config, reps_default=4):
+    """
+    Собирает готовый квантовый слой Q_Net из конфига:
+        config.encoding_type   : 'angle' | 'state'
+        config.ansatz_type     : 'ry'    | 'zz'
+        config.entanglement    : 'linear'|'circular'|'full'
+        config.reps            : int
+        config.shots, config.backend_type, config.transpile_before
+    """
+    encoding_type = getattr(config, 'encoding_type', 'angle')
+    ansatz_type = getattr(config, 'ansatz_type', 'ry')
+    entanglement = getattr(config, 'entanglement', 'circular')
+    reps = getattr(config, 'reps', reps_default)
+
+    feature_map, input_transform, num_qubits = create_encoding(
+        encoding_type, num_features
+    )
+    ansatz = create_ansatz(ansatz_type, num_qubits, reps, entanglement)
+
+    qnn = create_qnn(
+        feature_map, ansatz, config.shots,
+        backend_type=config.backend_type,
+        transpile_before=config.transpile_before,
+    )
+    return Q_Net(qnn, num_classes, input_transform=input_transform)

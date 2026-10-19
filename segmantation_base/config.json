@@ -1,0 +1,21 @@
+{
+  "checkpoint": "best_models_weights/best_seg_model.pth",
+
+  "image": null,
+  "image_dir": null,
+  "output_dir": null,
+
+  "threshold": 0.5,
+  "transform_type": "crop",
+  "target_size": [256, 512],
+  "device": "cpu",
+
+  "num_classes": 4,
+  "class_names": ["царапины", "трещины", "расслоения", "пятна"],
+  "class_colors": ["#FF4136", "#2ECC40", "#0074D9", "#FF851B"],
+
+  "output_type": "overlay",
+  "output_layout": "hwc",
+  "overlay_alpha": 0.58,
+  "batch_size": 32
+}

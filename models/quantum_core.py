@@ -1,9 +1,9 @@
-import time
+"""Quantum layer construction and noisy sampler primitives."""
+
 import numpy as np
 import torch
 import torch.nn as nn
 from qiskit import QuantumCircuit
-from qiskit.circuit import ParameterVector
 from qiskit.primitives import BaseSamplerV2, PrimitiveResult, PubResult
 from qiskit.primitives.containers import DataBin, BitArray
 from qiskit_aer import AerSimulator
@@ -16,14 +16,29 @@ from qiskit_machine_learning.neural_networks import SamplerQNN
 from models.encoding import create_encoding
 from models.ansatz import create_ansatz
 
+
 class NoisySamplerV2(BaseSamplerV2):
-    def __init__(self, backend, shots=2048, transpile_before_bind=False, noise_model=None):
+    """SamplerV2 implementation executing circuits on a noisy Aer simulator."""
+
+    def __init__(self, backend, shots=2048, transpile_before_bind=False,
+                 noise_model=None):
+        """Initialize the noisy sampler.
+
+        Args:
+            backend: Target backend used for transpilation; its noise model is
+                used when running on Aer.
+            shots: Default number of shots per circuit execution.
+            transpile_before_bind: If True, transpile the unbound circuit
+                once and reuse it across parameter rows.
+            noise_model: Optional Aer noise model overriding the backend noise.
+
+        Returns:
+            None.
+        """
         super().__init__()
 
-        # Запоминаем "настоящий" целевой бэкенд для транспиляции
         self._target_backend = backend
 
-        # Для исполнения используем AerSimulator с шумом
         if isinstance(backend, AerSimulator):
             self._backend = backend
         else:
@@ -36,9 +51,7 @@ class NoisySamplerV2(BaseSamplerV2):
         self._transpile_before_bind = transpile_before_bind
         self._transpiled_cache = {}
 
-        # Pass manager целимся в ИСХОДНЫЙ бэкенд (у него корректный basis_gates),
-        # а не в AerSimulator-обёртку.
-        pm_target = backend  # <-- ключевой момент
+        pm_target = backend
         try:
             self._pm = generate_preset_pass_manager(
                 optimization_level=3, backend=pm_target
@@ -47,16 +60,31 @@ class NoisySamplerV2(BaseSamplerV2):
             self._pm = None
 
     def _get_transpiled_circuit(self, circuit):
+        """Return a cached transpiled version of the given circuit.
+
+        Args:
+            circuit: Source ``QuantumCircuit`` to transpile.
+
+        Returns:
+            Transpiled ``QuantumCircuit`` (or the original circuit when no
+            pass manager is available).
+        """
         cache_key = id(circuit)
         if cache_key not in self._transpiled_cache:
             transpiled = self._pm.run(circuit) if self._pm is not None else circuit
             self._transpiled_cache[cache_key] = transpiled
         return self._transpiled_cache[cache_key]
-    
+
     def run(self, pubs, *, shots=None):
-        """
-        Публичный API сэмплера. Возвращает NoisySamplerJob,
-        который лениво вычислит результат по .result().
+        """Submit PUBs for execution and return a lazy job.
+
+        Args:
+            pubs: Iterable of PUBs, each ``(circuit, parameter_values)``.
+            shots: Optional per-call shot override.
+
+        Returns:
+            ``NoisySamplerJob`` whose ``result()`` method produces a
+            ``PrimitiveResult``.
         """
         return NoisySamplerJob(
             sampler=self,
@@ -65,6 +93,16 @@ class NoisySamplerV2(BaseSamplerV2):
         )
 
     def _run(self, pubs, shots):
+        """Execute the PUBs synchronously and build a ``PrimitiveResult``.
+
+        Args:
+            pubs: Iterable of PUBs, each ``(circuit, parameter_values)``.
+            shots: Number of shots per circuit execution.
+
+        Returns:
+            ``PrimitiveResult`` containing one ``PubResult`` per PUB, with
+            measurement bit arrays in the ``meas`` data field.
+        """
         results = []
 
         for pub in pubs:
@@ -82,7 +120,6 @@ class NoisySamplerV2(BaseSamplerV2):
                         f"parameter_values has invalid shape {param_batch.ndim}"
                     )
 
-            # Получаем транспилированную схему из кеша (если требуется)
             if self._transpile_before_bind:
                 transpiled_circuit = self._get_transpiled_circuit(circuit)
             else:
@@ -108,7 +145,6 @@ class NoisySamplerV2(BaseSamplerV2):
                     if self._pm is not None:
                         bound_circuit = self._pm.run(bound_circuit)
 
-                # Запуск на шумном бэкенде Qiskit Aer
                 job = self._backend.run(bound_circuit, shots=shots)
                 counts = job.result().get_counts()
                 all_counts.append(counts)
@@ -124,15 +160,30 @@ class NoisySamplerV2(BaseSamplerV2):
 
 
 class NoisySamplerJob:
-    """Wrapper for noisy sampler job."""
+    """Lazy job wrapper returned by ``NoisySamplerV2.run``."""
 
     def __init__(self, sampler, pubs, shots):
+        """Initialize the job.
+
+        Args:
+            sampler: The owning ``NoisySamplerV2`` instance.
+            pubs: Iterable of PUBs to execute.
+            shots: Number of shots per circuit execution.
+
+        Returns:
+            None.
+        """
         self._sampler = sampler
         self._pubs = pubs
         self._shots = shots
         self._result = None
 
     def result(self):
+        """Return the cached execution result, computing it on first call.
+
+        Returns:
+            ``PrimitiveResult`` produced by ``NoisySamplerV2._run``.
+        """
         if self._result is None:
             self._result = self._sampler._run(
                 self._pubs, self._shots
@@ -140,30 +191,29 @@ class NoisySamplerJob:
         return self._result
 
 
-def create_qnn(
-    feature_map,
-    ansatz,
-    shots,
-    backend_type='noisy_simulator',
-    backend=FakeSherbrooke(),
-    noise_model=None,
-    transpile_before=True,
-):
-    """
-    Создаёт SamplerQNN на основе готовых схем feature_map и ansatz.
+def create_qnn(feature_map, ansatz, shots, backend_type='noisy_simulator',
+               backend=FakeSherbrooke(), noise_model=None,
+               transpile_before=True):
+    """Build a ``SamplerQNN`` from a feature map and a variational ansatz.
 
     Args:
-        feature_map (QuantumCircuit): параметризованная схема кодирования входных данных.
-        ansatz (QuantumCircuit): параметризованная вариационная схема.
-        shots (int): количество измерений.
-        backend_type (str): 'aer_simulator' | 'noisy_simulator' | 'custom'.
-        backend (Backend | AerSimulator | None): конкретный бэкенд Qiskit.
-        noise_model (NoiseModel | None): шумовая модель Aer (для noisy/custom).
-        transpile_before (bool): транспилировать до привязки параметров
-                                 (для NoisySamplerV2).
+        feature_map: Parameterized ``QuantumCircuit`` encoding input data.
+        ansatz: Parameterized ``QuantumCircuit`` holding trainable weights.
+        shots: Number of measurement shots per execution.
+        backend_type: Execution backend, one of ``'aer_simulator'`` or
+            ``'noisy_simulator'``.
+        backend: Qiskit backend instance (or ``AerSimulator``) used for the
+            noisy execution path.
+        noise_model: Optional Aer ``NoiseModel`` used by the noisy sampler.
+        transpile_before: If True, transpile before binding parameters inside
+            ``NoisySamplerV2``.
 
     Returns:
-        SamplerQNN
+        ``SamplerQNN`` composed of the feature map followed by the decomposed
+        ansatz.
+
+    Raises:
+        ValueError: If ``backend_type`` is not a supported execution backend.
     """
     num_qubits = feature_map.num_qubits
     qc = QuantumCircuit(num_qubits)
@@ -177,8 +227,6 @@ def create_qnn(
         qc_isa = pm.run(qc)
 
     elif backend_type == 'noisy_simulator':
-        # Шумный симулятор — используем NoisySamplerV2,
-        # который сам делает транспиляцию под целевой backend
         backend = backend if backend is not None else AerSimulator()
         sampler = NoisySamplerV2(
             backend,
@@ -186,7 +234,7 @@ def create_qnn(
             transpile_before_bind=transpile_before,
             noise_model=noise_model,
         )
-        qc_isa = qc  # транспиляция внутри сэмплера
+        qc_isa = qc
 
     else:
         raise ValueError(f"Unknown backend_type: {backend_type}")
@@ -202,13 +250,25 @@ def create_qnn(
 
 
 class Q_Net(nn.Module):
-    """
-    Универсальный квантовый слой.
-    Принимает qnn, функцию преобразования входа и количество классов.
-    """
-    def __init__(self, qnn, num_classes, input_transform=None, output_transform=None):
+    """Trainable quantum layer wrapping a ``SamplerQNN`` via ``TorchConnector``."""
+
+    def __init__(self, qnn, num_classes, input_transform=None,
+                 output_transform=None):
+        """Initialize the quantum layer.
+
+        Args:
+            qnn: A ``SamplerQNN`` whose input and weight parameters are
+                already configured.
+            num_classes: Number of output classes.
+            input_transform: Optional callable applied to the input tensor
+                before it is passed to the QNN.
+            output_transform: Optional flag; when not ``None`` a final linear
+                projection ``fc_out`` is applied to the QNN output.
+
+        Returns:
+            None.
+        """
         super().__init__()
-        # Запоминаем форму выхода ДО обёртки в TorchConnector
         self.output_shape = tuple(qnn.output_shape)
         self.qnn = TorchConnector(qnn)
         self.fc_out = nn.Linear(self.output_shape[0], num_classes)
@@ -216,22 +276,47 @@ class Q_Net(nn.Module):
         self.output_transform = output_transform
 
     def forward(self, x):
+        """Compute the quantum layer output for an input batch.
+
+        Args:
+            x: Input tensor of shape ``(N, num_features)`` or
+                ``(num_features,)``.
+
+        Returns:
+            Output tensor of shape ``(N, num_classes)`` when
+            ``output_transform`` is set, otherwise the raw QNN output of
+            shape ``(N, output_shape[0])``.
+        """
         if self.input_transform is not None:
             x = self.input_transform(x)
-        x = self.qnn(x)
+
+        device_type = x.device.type if isinstance(x, torch.Tensor) else 'cpu'
+        if isinstance(x, torch.Tensor) and x.dtype in (torch.float16, torch.bfloat16):
+            x = x.float()
+        with torch.autocast(device_type=device_type, enabled=False):
+            x = self.qnn(x)
+
         if self.output_transform is not None:
             x = self.fc_out(x)
         return x
 
 
 def build_quantum_layer(num_features, num_classes, config, reps_default=4):
-    """
-    Собирает готовый квантовый слой Q_Net из конфига:
-        config.encoding_type   : 'angle' | 'state'
-        config.ansatz_type     : 'ry'    | 'zz'
-        config.entanglement    : 'linear'|'circular'|'full'
-        config.reps            : int
-        config.shots, config.backend_type, config.transpile_before
+    """Build a ``Q_Net`` from configuration attributes.
+
+    Args:
+        num_features: Number of classical features fed into the quantum
+            circuit.
+        num_classes: Number of output classes.
+        config: Configuration object exposing ``encoding_type``,
+            ``ansatz_type``, ``entanglement``, ``reps``, ``shots``,
+            ``backend_type`` and ``transpile_before``.
+        reps_default: Fallback number of variational repetitions when
+            ``config.reps`` is not provided.
+
+    Returns:
+        ``Q_Net`` instance wrapping the constructed ``SamplerQNN`` and the
+        appropriate input transform for the selected encoding.
     """
     encoding_type = getattr(config, 'encoding_type', 'angle')
     ansatz_type = getattr(config, 'ansatz_type', 'ry')

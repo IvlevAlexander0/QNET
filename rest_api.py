@@ -15,6 +15,7 @@ from torch.cuda import is_available
 
 from inference.classifier import return_classifier
 from inference.segmenter import return_segmenter
+from segmantation_base.inference import InferenceConfig
 from config import Config
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,19 +27,18 @@ env = Environment(
     cache_size=0
 )
 
-# Константы
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_FILE_SIZE = 10 * 1024 * 1024
+
 
 def render_template(request: Request, template_name: str, context: dict, status_code: int = 200):
-    """Рендерит HTML-шаблон с возможностью указать HTTP-статус."""
     context['request'] = request
     template = env.get_template(template_name)
     html_content = template.render(**context)
     return HTMLResponse(content=html_content, status_code=status_code)
 
+
 config = Config.from_json('config.json')
 
-# Получаем классификатор
 classifier_config = {
     'device': config.device,
     'num_classes': config.num_classes,
@@ -59,10 +59,11 @@ try:
 except Exception as e:
     raise RuntimeError("Classifier initialization failed") from e
 
-segmenter = return_segmenter()
+segmenter = return_segmenter(InferenceConfig.from_json("segmantation_base//config.json"))
 
 app = FastAPI(title="Image Processing API")
 changed_url = "/{process}/ports/{ports}/"
+
 
 def image_to_base64(image: Image.Image, format: str) -> str:
     img_byte_arr = io.BytesIO()
@@ -70,8 +71,33 @@ def image_to_base64(image: Image.Image, format: str) -> str:
     img_byte_arr = img_byte_arr.getvalue()
     return base64.b64encode(img_byte_arr).decode('utf-8')
 
+
+def _segmentation_to_pil(seg_result) -> Image.Image:
+    if isinstance(seg_result, Image.Image):
+        return seg_result.convert("RGB")
+
+    arr = np.asarray(seg_result)
+    if arr.dtype != np.uint8:
+        arr = (np.clip(arr.astype(np.float32), 0.0, 1.0) * 255.0).astype(np.uint8)
+
+    if arr.ndim == 2:
+        return Image.fromarray(arr, mode="L").convert("RGB")
+    if arr.ndim == 3 and arr.shape[2] == 1:
+        return Image.fromarray(arr[..., 0], mode="L").convert("RGB")
+    if arr.ndim == 3 and arr.shape[2] == 3:
+        return Image.fromarray(arr, mode="RGB")
+    if arr.ndim == 3 and arr.shape[2] == 4:
+        arr = np.transpose(arr, (1, 2, 0))
+        if arr.shape[2] == 3:
+            return Image.fromarray(arr, mode="RGB")
+        if arr.shape[2] == 1:
+            return Image.fromarray(arr[..., 0], mode="L").convert("RGB")
+    raise ValueError(f"Unsupported segmentation output shape: {arr.shape}")
+
+
 def get_base_url(request: Request):
     return str(request.url).rstrip('/')
+
 
 @app.get(changed_url, response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -79,11 +105,11 @@ async def read_root(request: Request):
     context = {"base_url": base_url}
     return render_template(request, "upload.html", context)
 
+
 @app.post(changed_url + "upload/", response_class=HTMLResponse)
 async def upload_file(request: Request, file: UploadFile = File(...)):
-    base_url = get_base_url(request)[:-7]  # убирается "/upload/"
+    base_url = get_base_url(request)[:-7]
 
-    # 1. Проверка размера файла
     try:
         image_data = await file.read()
         if len(image_data) == 0:
@@ -96,29 +122,25 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         context = {"error": "Ошибка чтения файла", "base_url": base_url}
         return render_template(request, "upload.html", context, status_code=400)
 
-    # 2. Проверка MIME-типа (не обязательная, но дополнительная)
     if not file.content_type.startswith('image/'):
         context = {"error": "Файл должен быть изображением", "base_url": base_url}
         return render_template(request, "upload.html", context, status_code=400)
 
-    # 3. Попытка открыть изображение через PIL (проверка целостности)
     try:
         image = Image.open(io.BytesIO(image_data))
-        # Принудительно загружаем данные, чтобы убедиться, что файл не повреждён
         image.load()
     except Exception as e:
         context = {"error": "Некорректный формат изображения или файл повреждён", "base_url": base_url}
         return render_template(request, "upload.html", context, status_code=400)
 
-    # 4. Основная обработка
     try:
         original_format = image.format or "JPEG"
         original_base64 = image_to_base64(image, original_format)
 
         probs, labels = classifier(image)
         predictions = []
-        # Используем цвета из конфига, если они переданы
-        colors = getattr(config, 'class_colors', ['#FF4136', '#2ECC40', '#0074D9', '#FF851B'])
+        colors = getattr(config, 'class_colors',
+                        ['#FF4136', '#2ECC40', '#0074D9', '#FF851B'])
         for name, prob, label, color in zip(class_names, probs, labels, colors):
             predictions.append({
                 'name': name,
@@ -128,14 +150,14 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             })
 
         seg_arr = segmenter(image)
-        seg_image = Image.fromarray((seg_arr * 255).astype(np.uint8)).convert('RGB')
-        segmentation_base64 = image_to_base64(seg_image, original_format)
+        seg_image = _segmentation_to_pil(seg_arr)
+        segmentation_base64 = image_to_base64(seg_image, "PNG")
 
         mime_type = f"image/{original_format.lower()}"
 
         context = {
             "original_image": f"data:{mime_type};base64,{original_base64}",
-            "segmentation_image": f"data:{mime_type};base64,{segmentation_base64}",
+            "segmentation_image": f"data:image/png;base64,{segmentation_base64}",
             "predictions": predictions,
             "message": "Изображение успешно обработано",
             "base_url": base_url,
@@ -146,6 +168,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     except Exception as e:
         context = {"error": f"Ошибка обработки: {str(e)}", "base_url": base_url}
         return render_template(request, "upload.html", context, status_code=500)
+
 
 @app.post(changed_url + "download/")
 async def download_file(request: Request):

@@ -1,22 +1,31 @@
-# models/ansatz.py
+"""Variational ansatz circuits for quantum neural networks.
+
+Supported ansatz types:
+  - ``'ry'``: RealAmplitudes — alternating RY layers and CX entanglement.
+  - ``'zz'``: RY layers interleaved with RZZ entanglement.
+
+Supported entanglement types: ``'linear'``, ``'circular'``, ``'full'``.
 """
-Вариационные анзацы для QNN.
 
-Поддерживаемые типы:
-  - 'ry' : RealAmplitudes — чередование RY-слоёв и CX-запутывания.
-  - 'zz' : RY-слои, чередующиеся с RZZ-запутыванием.
-
-Типы запутывания: 'linear', 'circular', 'full'.
-
-Функция create_ansatz(ansatz_type, num_qubits, reps, entanglement)
-возвращает параметризованную QuantumCircuit.
-"""
 from qiskit import QuantumCircuit
 from qiskit.circuit import ParameterVector
 from qiskit.circuit.library import RealAmplitudes
 
 
-def _entanglement_pairs(num_qubits: int, entanglement: str):
+def _entanglement_pairs(num_qubits, entanglement):
+    """Build the list of qubit pairs used for entanglement.
+
+    Args:
+        num_qubits: Number of qubits in the circuit.
+        entanglement: Entanglement topology, one of ``'linear'``,
+            ``'circular'`` or ``'full'``.
+
+    Returns:
+        List of ``(i, j)`` integer tuples describing entangled qubit pairs.
+
+    Raises:
+        ValueError: If ``entanglement`` is not a supported topology.
+    """
     entanglement = (entanglement or 'circular').lower()
     if entanglement == 'linear':
         return [(i, i + 1) for i in range(num_qubits - 1)]
@@ -30,11 +39,33 @@ def _entanglement_pairs(num_qubits: int, entanglement: str):
     raise ValueError(f"Unknown entanglement type: {entanglement}")
 
 
-def _create_ry_ansatz(num_qubits: int, reps: int, entanglement: str):
+def _create_ry_ansatz(num_qubits, reps, entanglement):
+    """Create a RealAmplitudes (RY + CX) ansatz.
+
+    Args:
+        num_qubits: Number of qubits in the circuit.
+        reps: Number of variational repetitions.
+        entanglement: Entanglement topology, one of ``'linear'``,
+            ``'circular'`` or ``'full'``.
+
+    Returns:
+        A ``QuantumCircuit`` implementing the RealAmplitudes ansatz.
+    """
     return RealAmplitudes(num_qubits, reps=reps, entanglement=entanglement)
 
 
-def _create_zz_ansatz(num_qubits: int, reps: int, entanglement: str):
+def _create_zz_ansatz(num_qubits, reps, entanglement):
+    """Create an RY + RZZ variational ansatz.
+
+    Args:
+        num_qubits: Number of qubits in the circuit.
+        reps: Number of variational repetitions.
+        entanglement: Entanglement topology, one of ``'linear'``,
+            ``'circular'`` or ``'full'``.
+
+    Returns:
+        A ``QuantumCircuit`` implementing the RY + RZZ ansatz.
+    """
     circuit = QuantumCircuit(num_qubits)
     pairs = _entanglement_pairs(num_qubits, entanglement)
 
@@ -51,8 +82,22 @@ def _create_zz_ansatz(num_qubits: int, reps: int, entanglement: str):
     return circuit
 
 
-def create_ansatz(ansatz_type: str, num_qubits: int, reps: int,
-                  entanglement: str = 'circular'):
+def create_ansatz(ansatz_type, num_qubits, reps, entanglement='circular'):
+    """Create a parameterized variational ansatz circuit.
+
+    Args:
+        ansatz_type: Ansatz family, either ``'ry'`` or ``'zz'``.
+        num_qubits: Number of qubits in the circuit.
+        reps: Number of variational repetitions.
+        entanglement: Entanglement topology, one of ``'linear'``,
+            ``'circular'`` or ``'full'``.
+
+    Returns:
+        A parameterized ``QuantumCircuit`` implementing the requested ansatz.
+
+    Raises:
+        ValueError: If ``ansatz_type`` is not a supported ansatz family.
+    """
     ansatz_type = (ansatz_type or 'ry').lower()
     if ansatz_type == 'ry':
         return _create_ry_ansatz(num_qubits, reps, entanglement)

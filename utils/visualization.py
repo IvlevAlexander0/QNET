@@ -1,14 +1,27 @@
+"""Visualization utilities for training metrics and model predictions."""
+
 import os
+
 import numpy as np
 import torch
 import torchvision
 import matplotlib.pyplot as plt
 from PIL import Image
 
+
 def save_training_plots(history, save_dir, filename='training_metrics.png'):
-    """
-    Сохраняет графики обучения (loss, accuracy, f1) в указанную директорию.
-    Если save_dir is None, показывает графики интерактивно.
+    """Save loss, accuracy and F1 curves for a training run.
+
+    Args:
+        history: Dictionary with keys ``train_loss``, ``val_loss``,
+            ``train_acc``, ``val_acc``, ``train_f1`` and ``val_f1``, each
+            mapping to a list of per-epoch values.
+        save_dir: Directory where the plot is written. When ``None`` the
+            plot is shown interactively instead.
+        filename: Output file name inside ``save_dir``.
+
+    Returns:
+        None.
     """
     epochs = range(1, len(history['train_loss']) + 1)
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
@@ -47,10 +60,20 @@ def save_training_plots(history, save_dir, filename='training_metrics.png'):
 
 
 def _denormalize(img_tensor, transform):
-    """Обратное преобразование Normalize для отображения."""
+    """Undo normalization applied by a ``torchvision`` transform.
+
+    Args:
+        img_tensor: Image tensor of shape ``(1, C, H, W)``.
+        transform: Transformation pipeline that may contain a
+            ``transforms.Normalize`` instance.
+
+    Returns:
+        Displayable image ``np.ndarray`` of shape ``(H, W)`` for single-channel
+        inputs or ``(H, W, C)`` for multi-channel inputs, with values in
+        ``[0, 1]``.
+    """
     norm = None
     if transform is not None:
-        # Ищем Normalize как в Compose, так и среди одиночных трансформаций
         candidates = getattr(transform, 'transforms', [transform])
         for t in candidates:
             if isinstance(t, torchvision.transforms.Normalize):
@@ -63,27 +86,26 @@ def _denormalize(img_tensor, transform):
         return torch.clamp(img, 0.0, 1.0).squeeze(0).numpy()
     return img_tensor.squeeze(0).squeeze(0).cpu().numpy()
 
+
 def save_predictions_from_folder(model, folder, class_names, device, transform,
                                  save_dir, threshold=0.5):
-    """
-    Загружает изображения из папки, созданной copy_class_combinations.py,
-    и сохраняет визуализации предсказаний модели.
+    """Run a model over a folder of images and save annotated visualizations.
 
-    Имя каждого файла (без расширения) — бинарная строка длиной num_classes:
-        позиция i (слева направо) соответствует i-му классу из class_names.
-        1 — класс присутствует, 0 — отсутствует.
+    Folder files are expected to be named as binary strings of length
+    ``len(class_names)`` (for example ``'0000.jpg'``, ``'1000.jpg'``), where
+    character ``i`` indicates whether class ``i`` is present.
 
-    Аргументы:
-        model       : обученная модель (возвращает вероятности [0..1]).
-        folder      : путь к папке с изображениями вида '0000.jpg', '1000.jpg', ...
-        class_names : список имён классов в порядке, использованном при копировании.
-        device      : torch.device.
-        transform   : трансформация для входа в модель (та же, что в тесте/валидации).
-        save_dir    : папка для сохранения визуализаций.
-        threshold   : порог бинаризации предсказаний.
+    Args:
+        model: Trained model returning per-class probabilities in ``[0, 1]``.
+        folder: Directory containing the images to process.
+        class_names: List of class names aligned with the label positions.
+        device: Device on which the model runs.
+        transform: Transformation pipeline applied to each input image.
+        save_dir: Directory where visualization files are written.
+        threshold: Decision threshold applied to predicted probabilities.
 
-    Возвращает:
-        list[str]: пути к сохранённым файлам.
+    Returns:
+        List of paths to the saved visualization files.
     """
     model.eval()
     num_classes = len(class_names)

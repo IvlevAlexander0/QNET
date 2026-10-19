@@ -1,0 +1,63 @@
+{
+    "dataset_path": "../Dataset_k",
+    "c_load_path": "__.pth",
+    "q_load_path": "__.pth",
+    "h_load_path": "best_models_weights/best_clas_model.pth",
+
+    "train_part": 0.6,
+    "val_part": 0.2,
+    "in_height": 256,
+    "in_width": 1600,
+    "threshold": 0.5,
+
+    "epochs": 16,
+    "initial_lr": 0.001,
+    "w_decay": 0.0,
+    "batch_size": 32,
+
+    "shots": 128,
+    "backend_type": "aer_simulator",
+    "transpile_before": true,
+    "freeze_quantum": true,
+    "encoding_type": "angle",
+    "ansatz_type": "ry",
+    "entanglement": "circular",
+    "reps": 4,
+
+    "C_train_flag": true,
+    "Q_train_flag": true,
+    "C_load_params": true,
+    "Q_load_params": true,
+
+    "seed": 42,
+    "device": "cuda",
+    "use_amp": true,
+    "det": false,
+    "eps": 1e-7,
+
+    "model_name": "effnetv0",
+    "model_mode": "quantum",
+
+    "noise_config": {
+        "gaussian_std": null,
+        "salt_pepper_prob": null,
+        "jpeg_quality": null,
+        "brightness_range": null,
+        "contrast_range": null,
+        "speckle_std": null,
+        "poisson_scale": null,
+        "motion_degree": null
+    },
+
+    "num_classes": 4,
+    "class_weights": [0.17, 0.6, 0.03, 0.2],
+    "transform_mean": 0.343,
+    "transform_std": 0.134,
+
+    "log_dir": "D:\\WORK\\SEVERSTAL\\QNET\\logs",
+    "enable_logging": true,
+    "save_visualizations": true,
+    "enable_tensorboard": true,
+    "resume_from": null,
+    "resume_from_": "D:\\WORK\\SEVERSTAL\\QNET\\logs\\20260906_171136"
+}

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 from models.quantum_core import build_quantum_layer
+from models.registry import register_model
 
 model_config = {"reps": 4}
 
@@ -75,7 +76,7 @@ class Clp_Net(nn.Module):
         x = F.normalize(x, p=2, dim=-1)
         return x
 
-
+@register_model("clp_net")
 def create_base_model(mode, num_classes, input_shape, config):
     height, width = input_shape
     if mode == 'classical':

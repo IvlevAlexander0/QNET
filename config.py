@@ -2,10 +2,8 @@ import os
 import json
 import torch
 
-class Config:
-    """Конфигурация проекта, загружаемая из JSON-файла."""
 
-    # Значения по умолчанию
+class Config:
     dataset_path = './Dataset_severstal'
     c_load_path = "__.pth"
     q_load_path = "__.pth"
@@ -23,8 +21,9 @@ class Config:
     batch_size = 32
 
     shots = 128
-    backend_type = 'aer_simulator'  # 'aer_simulator', 'noisy_simulator'
+    backend_type = 'aer_simulator'
     transpile_before = True
+    freeze_quantum = False
     encoding_type = 'angle'
     ansatz_type = 'ry'
     entanglement = 'circular'
@@ -37,20 +36,17 @@ class Config:
 
     seed = 42
     device = "cpu"
+    use_amp = True
     det = True
     eps = 1e-7
 
-    # Параметры DataLoader
-    # num_workers = 8
-    # prefetch_factor = 2
-
-    model_name = 'effnetv0'       
-    model_mode = 'quantum'         # 'classical', 'quantum', 'hybrid'
+    model_name = 'effnetv0'
+    model_mode = 'quantum'
 
     noise_config = None
 
-    log_dir = "./logs"                # базовая папка для логов
-    enable_logging = True             # включить логирование
+    log_dir = "./logs"
+    enable_logging = True
     save_visualizations = True
     enable_tensorboard = True
     resume_from = None
@@ -59,6 +55,7 @@ class Config:
     class_weights = [0.17, 0.6, 0.03, 0.2]
     transform_mean = 0.343
     transform_std = 0.134
+    train_augment = False
     class_names = ["царапины", "трещины", "расслоения", "пятна"]
     class_colors = ['#FF4136', '#2ECC40', '#0074D9', '#FF851B']
 
@@ -89,14 +86,9 @@ class Config:
         return instance
 
     def get_noise_param(self, param_name, default=None):
-        """
-        Удобный метод для получения параметра шума.
-        Пример: config.get_noise_param('gaussian_std', 0.0)
-        """
         if self.noise_config is None:
             return default
         return self.noise_config.get(param_name, default)
 
     def has_noise(self):
-        """Проверяет, задана ли конфигурация шумов."""
         return self.noise_config is not None and len(self.noise_config) > 0

@@ -11,7 +11,7 @@ from PIL import Image, ImageQt
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QFileDialog, QStatusBar, QProgressDialog,
-    QSplitter, QMessageBox, QToolButton, QMenu, QLineEdit,
+    QSplitter, QMessageBox, QToolButton, QMenu,
     QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PySide6.QtGui import QPixmap, QImage, QImageReader, QColor
@@ -132,14 +132,11 @@ class ImageViewer(QMainWindow):
 
         self.threshold_label = QLabel(f"Порог: {self.threshold:.2f}")
 
-        self.threshold_edit = QLineEdit()
-        self.threshold_edit.setFixedWidth(60)
-        self.threshold_edit.setText(f"{self.threshold:.2f}")
-        self.threshold_edit.returnPressed.connect(self.on_threshold_entered)
+        self.threshold_label = QLabel(f"Порог (фиксированный): {self.threshold:.2f}")
+        self.threshold_label.setStyleSheet("color: #555555;")
 
         threshold_layout = QHBoxLayout()
         threshold_layout.addWidget(self.threshold_label)
-        threshold_layout.addWidget(self.threshold_edit)
         threshold_layout.addStretch()
 
         button_layout1 = QHBoxLayout()
@@ -707,37 +704,6 @@ class ImageViewer(QMainWindow):
         if self.image_paths:
             self.current_index = (self.current_index + 1) % len(self.image_paths)
             self.show_image()
-
-    def on_threshold_entered(self):
-        try:
-            val = float(self.threshold_edit.text().replace(",", "."))
-            if 0.0 <= val <= 1.0:
-                self.threshold = val
-                self.threshold_label.setText(f"Порог: {val:.2f}")
-                self.threshold_edit.setText(f"{val:.2f}")
-                if self.image_paths:
-                    self.reclassify_all()
-            else:
-                self.threshold_edit.setText(f"{self.threshold:.2f}")
-        except ValueError:
-            self.threshold_edit.setText(f"{self.threshold:.2f}")
-
-    def reclassify_all(self):
-        if not self.image_paths:
-            return
-
-        new_labels = []
-        for probs in self.probs_list:
-            if probs is None:
-                new_labels.append([])
-                continue
-            detected = probs >= self.threshold
-            active = [self.classes[i] for i, val in enumerate(detected) if val]
-            new_labels.append(active)
-
-        self.labels = new_labels
-        self.show_image()
-        self.status_bar.showMessage("Метки обновлены с новым порогом")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

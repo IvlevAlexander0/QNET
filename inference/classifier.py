@@ -55,7 +55,10 @@ def return_classifier(config_dict):
 
     if not os.path.exists(config.h_load_path):
         raise FileNotFoundError(f"File {config.h_load_path} not found")
-    state_dict = torch.load(config.h_load_path, map_location=config.device)
+    try:
+        state_dict = torch.load(config.h_load_path, map_location=config.device, weights_only=True)
+    except:
+        state_dict = (torch.load(config.h_load_path, map_location=config.device, weights_only=False))['model_state_dict']
     model.load_state_dict(state_dict)
 
     if getattr(config, "freeze_quantum", True):

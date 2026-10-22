@@ -1,6 +1,9 @@
-"""Segmentation inference factory producing overlays, masks or probabilities."""
+"""Segmentation inference factory for single images and image batches."""
+
+from pathlib import Path
 
 import numpy as np
+import torch
 from PIL import Image
 
 from segmantation_base.inference import _resolve_config, SegmentationInference
@@ -40,8 +43,9 @@ def return_segmenter(config_dict=None):
                 ``overlay_alpha``: Foreground opacity in ``[0, 1]`` used when
                     blending class colors over the original image (default
                     ``0.58``).
-                ``batch_size``: Accepted for interface parity; tiles are
-                    batched inside the model.
+                ``batch_size``: Number of input images per batch (default
+                    ``32``). Model forwards are capped at its existing tile
+                    batch size to limit memory use.
 
     Returns:
         Callable ``segment(images)`` that accepts a single ``PIL.Image`` or an
@@ -95,6 +99,62 @@ def return_segmenter(config_dict=None):
         config=config,
     )
     default_threshold = float(config.threshold)
+    configured_batch_size = (config_dict.get("batch_size") if isinstance(config_dict, dict)
+                             else getattr(config_dict, "batch_size", None))
+    batch_size = max(1, int(configured_batch_size or 32))
+    model_batch_size = min(batch_size, inference._tile_batch_size)
+
+    @torch.inference_mode()
+    def _predict_batch(images):
+        """Reuse the V3 preprocessing and tiled predictor for image batches."""
+        groups = {}
+        for index, image in enumerate(images):
+            if inference.transform_type == "resize":
+                size = tuple(inference.target_size)
+            elif isinstance(image, Image.Image):
+                size = (image.height, image.width)
+            else:
+                with Image.open(image) as source:
+                    size = (source.height, source.width)
+            groups.setdefault(size, []).append(index)
+
+        predictions = [None] * len(images)
+        crop_size = (inference.target_size if inference.transform_type == "crop"
+                     else inference._training_crop_size)
+        overlap = min(inference._tile_overlap, crop_size[0] // 2, crop_size[1] // 2)
+
+        for indices in groups.values():
+            for start in range(0, len(indices), model_batch_size):
+                offsets = indices[start:start + model_batch_size]
+                if len(offsets) == 1:
+                    predictions[offsets[0]] = inference.predict_probabilities(images[offsets[0]])
+                    continue
+
+                prepared = [inference.preprocess_image(images[i]) for i in offsets]
+                inputs = torch.cat([item["input_tensor"] for item in prepared], dim=0)
+                with torch.autocast(
+                    device_type=inference.device.type,
+                    dtype=inference._amp_dtype or torch.float16,
+                    enabled=inference._amp_dtype is not None,
+                ):
+                    logits = inference.training_module.predict_full_logits(
+                        inference.model, inputs, crop_size=crop_size, overlap=overlap,
+                        tile_batch_size=inference._tile_batch_size,
+                    )
+                    probs = torch.sigmoid(logits.float())
+                probs = probs.cpu().numpy().astype(np.float32, copy=False)
+
+                for position, index in enumerate(offsets):
+                    prediction = probs[position]
+                    if inference.transform_type == "resize":
+                        meta = prepared[position]
+                        prediction = inference.remove_padding_from_mask(
+                            prediction, meta["original_size"], meta["padding"],
+                            meta["scale_factor"],
+                        )
+                        prediction = np.clip(prediction, 0.0, 1.0)
+                    predictions[index] = prediction
+        return predictions
 
     def _make_overlay(image, probs_chw):
         """Blend class colors over the original RGB image.
@@ -141,25 +201,26 @@ def return_segmenter(config_dict=None):
             - empty input: an empty ``np.ndarray`` with the appropriate shape
               for the selected output configuration.
         """
-        single = isinstance(images, Image.Image)
+        single = isinstance(images, (Image.Image, str, Path))
         if single:
             images = [images]
         else:
             images = list(images)
 
         results = []
-        for image in images:
-            probs = inference.predict_probabilities(image, threshold=default_threshold)
-            if output_type == "overlay":
-                results.append(_make_overlay(image, probs))
-                continue
-            if output_type == "masks":
-                output = (probs > default_threshold).astype(np.uint8)
-            else:
-                output = probs.astype(np.float32)
-            if output_layout == "hwc":
-                output = np.transpose(output, (1, 2, 0))
-            results.append(output)
+        for start in range(0, len(images), batch_size):
+            chunk = images[start:start + batch_size]
+            for image, probs in zip(chunk, _predict_batch(chunk)):
+                if output_type == "overlay":
+                    results.append(_make_overlay(image, probs))
+                    continue
+                if output_type == "masks":
+                    output = (probs > default_threshold).astype(np.uint8)
+                else:
+                    output = probs.astype(np.float32)
+                if output_layout == "hwc":
+                    output = np.transpose(output, (1, 2, 0))
+                results.append(output)
 
         if single:
             return results[0]

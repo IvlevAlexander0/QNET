@@ -217,16 +217,21 @@ def create_efficientnet_model(mode, num_classes, input_shape, config):
         model_ = EfficientNetClassical2(num_classes, config)
         model = nn.Sequential(model_, nn.Sigmoid())
         classical_params = list(model_.feature_extractor.parameters()) + \
-                           list(model_.projection.parameters()) + \
-                           list(model_.c_net1.parameters()) + \
-                           list(model_.c_net2.parameters()) + \
-                           list(model_.c_net3.parameters())
+                        list(model_.feature_BN.parameters()) + \
+                        list(model_.projection.parameters()) + \
+                        list(model_.BN_in.parameters()) + \
+                        list(model_.c_net1.parameters()) + \
+                        list(model_.c_net2.parameters()) + \
+                        list(model_.c_net3.parameters()) + \
+                        list(model_.BN_out.parameters()) + \
+                        list(model_.final.parameters())
         info = {
             'type': 'classical2',
             'model_name': 'efficientnet',
             'classical_params': classical_params,
             'quantum_params': [],
-            'classical_prefix': ['feature_extractor.', 'projection.', 'c_net'],
+            'classical_prefix': ['feature_extractor.', 'feature_BN.', 'projection.',
+                                'BN_in.', 'c_net', 'BN_out.', 'final.'],
             'quantum_prefix': None,
             'base_model': model_,
         }
@@ -237,16 +242,21 @@ def create_efficientnet_model(mode, num_classes, input_shape, config):
         model = nn.Sequential(hybrid_model, nn.Sigmoid())
 
         classical_params = list(hybrid_model.feature_extractor.parameters()) + \
-                           list(hybrid_model.projection.parameters())
+                        list(hybrid_model.feature_BN.parameters()) + \
+                        list(hybrid_model.projection.parameters()) + \
+                        list(hybrid_model.BN_in.parameters()) + \
+                        list(hybrid_model.BN_out.parameters()) + \
+                        list(hybrid_model.final.parameters())
         quantum_params = list(hybrid_model.q_net1.parameters()) + \
-                         list(hybrid_model.q_net2.parameters()) + \
-                         list(hybrid_model.q_net3.parameters())
+                        list(hybrid_model.q_net2.parameters()) + \
+                        list(hybrid_model.q_net3.parameters())
         info = {
             'type': 'hybrid',
             'model_name': 'efficientnet',
             'classical_params': classical_params,
             'quantum_params': quantum_params,
-            'classical_prefix': ['feature_extractor.', 'projection.'],
+            'classical_prefix': ['feature_extractor.', 'feature_BN.', 'projection.',
+                                'BN_in.', 'BN_out.', 'final.'],
             'quantum_prefix': 'q_net.',
             'base_model': hybrid_model,
         }

@@ -2,10 +2,10 @@
     "dataset_path": "../Dataset_k",
     "c_load_path": "__.pth",
     "q_load_path": "__.pth",
-    "h_load_path": "best_models_weights/best_clas_model.pth",
+    "h_load_path": "./best_models_weights/best_clas_model.pth",
 
-    "train_part": 0.6,
-    "val_part": 0.2,
+    "train_part": 0.7,
+    "val_part": 0.15,
     "in_height": 256,
     "in_width": 1600,
     "threshold": 0.5,
@@ -15,7 +15,7 @@
     "w_decay": 0.0,
     "batch_size": 32,
 
-    "shots": 128,
+    "shots": 512,
     "backend_type": "aer_simulator",
     "transpile_before": true,
     "freeze_quantum": true,
@@ -54,10 +54,10 @@
     "transform_mean": 0.343,
     "transform_std": 0.134,
 
-    "log_dir": "D:\\WORK\\SEVERSTAL\\QNET\\logs",
+    "log_dir": "./logs",
     "enable_logging": true,
     "save_visualizations": true,
     "enable_tensorboard": true,
     "resume_from": null,
-    "resume_from_": "D:\\WORK\\SEVERSTAL\\QNET\\logs\\20260906_171136"
+    "resume_from_": "./logs/20261019_120250"
 }

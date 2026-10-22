@@ -1,5 +1,5 @@
 {
-  "checkpoint": "best_models_weights/best_seg_model.pth",
+  "checkpoint": "./best_models_weights/best_seg_model.pth",
 
   "image": null,
   "image_dir": null,

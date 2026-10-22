@@ -190,9 +190,9 @@ class NoisySamplerJob:
             )
         return self._result
 
-
+_UNSET = object()
 def create_qnn(feature_map, ansatz, shots, backend_type='noisy_simulator',
-               backend=FakeSherbrooke(), noise_model=None,
+               backend=_UNSET, noise_model=None,
                transpile_before=True):
     """Build a ``SamplerQNN`` from a feature map and a variational ansatz.
 
@@ -203,7 +203,9 @@ def create_qnn(feature_map, ansatz, shots, backend_type='noisy_simulator',
         backend_type: Execution backend, one of ``'aer_simulator'`` or
             ``'noisy_simulator'``.
         backend: Qiskit backend instance (or ``AerSimulator``) used for the
-            noisy execution path.
+            noisy execution path. When omitted, ``FakeSherbrooke()`` is created
+            lazily (avoiding the module-import cost). Pass ``None`` explicitly
+            to fall back to ``AerSimulator()``.
         noise_model: Optional Aer ``NoiseModel`` used by the noisy sampler.
         transpile_before: If True, transpile before binding parameters inside
             ``NoisySamplerV2``.
@@ -221,13 +223,15 @@ def create_qnn(feature_map, ansatz, shots, backend_type='noisy_simulator',
     qc.compose(ansatz.decompose(), inplace=True)
 
     if backend_type == 'aer_simulator':
-        backend = AerSimulator()
+        backend = AerSimulator(method="statevector", seed_simulator=42)
         sampler = SamplerV2(mode=backend, options={"default_shots": shots})
         pm = generate_preset_pass_manager(optimization_level=3, backend=backend)
         qc_isa = pm.run(qc)
 
     elif backend_type == 'noisy_simulator':
-        backend = backend if backend is not None else AerSimulator()
+        if backend is _UNSET:
+            backend = FakeSherbrooke()
+        backend = backend if backend is not None else AerSimulator() # seed_simulator=42
         sampler = NoisySamplerV2(
             backend,
             shots=shots,

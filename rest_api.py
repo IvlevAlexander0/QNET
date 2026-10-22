@@ -8,10 +8,7 @@ warnings.filterwarnings('ignore')
 
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException
 from fastapi.responses import HTMLResponse, Response
-from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-from torch.cuda import is_available
 
 from inference.classifier import return_classifier
 from inference.segmenter import return_segmenter
@@ -77,6 +74,13 @@ def _segmentation_to_pil(seg_result) -> Image.Image:
         return seg_result.convert("RGB")
 
     arr = np.asarray(seg_result)
+
+    if arr.ndim == 3:
+        if arr.shape[0] in (1, 3, 4) and arr.shape[-1] not in (1, 3, 4):
+            arr = np.transpose(arr, (1, 2, 0))
+        if arr.shape[-1] not in (1, 3, 4):
+            raise ValueError(f"Unsupported segmentation output shape: {arr.shape}")
+
     if arr.dtype != np.uint8:
         arr = (np.clip(arr.astype(np.float32), 0.0, 1.0) * 255.0).astype(np.uint8)
 
@@ -85,13 +89,9 @@ def _segmentation_to_pil(seg_result) -> Image.Image:
     if arr.ndim == 3 and arr.shape[2] == 1:
         return Image.fromarray(arr[..., 0], mode="L").convert("RGB")
     if arr.ndim == 3 and arr.shape[2] == 3:
-        return Image.fromarray(arr, mode="RGB")
+        return Image.fromarray(np.ascontiguousarray(arr), mode="RGB")
     if arr.ndim == 3 and arr.shape[2] == 4:
-        arr = np.transpose(arr, (1, 2, 0))
-        if arr.shape[2] == 3:
-            return Image.fromarray(arr, mode="RGB")
-        if arr.shape[2] == 1:
-            return Image.fromarray(arr[..., 0], mode="L").convert("RGB")
+        return Image.fromarray(np.ascontiguousarray(arr[..., :3]), mode="RGB")
     raise ValueError(f"Unsupported segmentation output shape: {arr.shape}")
 
 

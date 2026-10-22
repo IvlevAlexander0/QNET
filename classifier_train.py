@@ -123,7 +123,10 @@ def main(config_path='config.json'):
     if config.C_load_params and config.Q_load_params:
         if not os.path.exists(config.h_load_path):
             raise FileNotFoundError(f"Full model weights not found: {config.h_load_path}")
-        state_dict = torch.load(config.h_load_path, map_location=config.device)
+        try:
+            state_dict = torch.load(config.h_load_path, map_location=config.device, weights_only=True)
+        except:
+            state_dict = (torch.load(config.h_load_path, map_location=config.device, weights_only=False))['model_state_dict']
         model.load_state_dict(state_dict, strict=True)
         logger.info(f"Loaded full model from {config.h_load_path}")
     elif config.C_load_params:
@@ -170,8 +173,12 @@ def main(config_path='config.json'):
                                  weight_decay=config.w_decay)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=8, gamma=0.5)
 
-    device = model.device if hasattr(model, 'device') else torch.device(config.device) \
-             if not isinstance(config.device, torch.device) else config.device
+    if hasattr(model, 'device'):
+        device = model.device
+    elif isinstance(config.device, torch.device):
+        device = config.device
+    else:
+        device = torch.device(config.device)
     use_amp = getattr(config, 'use_amp', True) and device.type == 'cuda'
     amp_dtype = None
     if use_amp:

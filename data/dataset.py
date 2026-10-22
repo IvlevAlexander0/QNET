@@ -277,7 +277,7 @@ def load_severstal_data(root, train_part=0.7, val_part=0.15, random_state=42,
             verified in this directory.
 
     Returns:
-        Ten-element tuple:
+        Eleven-element tuple:
         ``(all_paths, all_labels, train_paths, train_labels, val_paths,
         val_labels, test_paths, test_labels, class_to_idx, num_classes,
         split_fingerprint)`` where ``split_fingerprint`` is a string or
@@ -338,9 +338,9 @@ def load_severstal_data(root, train_part=0.7, val_part=0.15, random_state=42,
             seed=random_state, val_fraction=val_part, test_fraction=test_fraction,
             image_dir=img_dir,
         )
-        _print_split_summary('TRAIN', split['train'], image_to_idx, class_list)
-        _print_split_summary('VAL',   split['val'],   image_to_idx, class_list)
-        _print_split_summary('TEST',  split['test'],  image_to_idx, class_list)
+        _print_split_summary('TRAIN', split['train'], image_to_classes, class_list)
+        _print_split_summary('VAL',   split['val'],   image_to_classes, class_list)
+        _print_split_summary('TEST',  split['test'],  image_to_classes, class_list)
 
     def _build(filenames):
         """Build path and label lists for the given filenames.

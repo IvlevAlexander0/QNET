@@ -81,7 +81,10 @@ def find_log_folders(log_root, model_name=None, model_mode=None,
         epochs_completed = 0
         if os.path.exists(checkpoint_path):
             try:
-                checkpoint = torch.load(checkpoint_path, map_location='cpu')
+                try:
+                    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
+                except Exception:
+                    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
                 epoch = checkpoint.get('epoch', 0)
                 epochs_completed = epoch + 1
             except Exception:

@@ -377,11 +377,15 @@ class SegmentationInference:
 
     @staticmethod
     def _load_rgb(image):
-        """Accept a path or PIL.Image; always return RGB PIL.Image."""
+        """Accept a path or PIL.Image; always return RGB PIL.Image.
+
+        Returns an independent in-memory copy so the result is safe to use after
+        the source file handle is closed.
+        """
         if isinstance(image, Image.Image):
-            return image.convert("RGB")
+            return image.convert("RGB").copy()
         with Image.open(image) as source:
-            return source.convert("RGB")
+            return source.convert("RGB").copy()
 
     @staticmethod
     def _display_stem(image):

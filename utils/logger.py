@@ -259,7 +259,10 @@ def get_completed_epochs(run_dir):
     checkpoint_path = os.path.join(run_dir, 'checkpoint_last.pth')
     if os.path.exists(checkpoint_path):
         try:
-            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            try:
+                checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
+            except Exception:
+                checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
             epoch = checkpoint.get('epoch', -1)
             if epoch >= 0:
                 return epoch + 1

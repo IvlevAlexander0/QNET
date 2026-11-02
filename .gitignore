@@ -3,3 +3,5 @@
 venv
 tmp
 logs
+adversarial_robustness
+fin_results

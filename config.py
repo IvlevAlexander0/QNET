@@ -70,13 +70,16 @@ class Config:
             with open(json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
         except FileNotFoundError:
-            print(f"Файл {json_path} не найден. Используются параметры по умолчанию.")
+            print(f"Файл {json_path} не найден. "
+                  "Используются параметры по умолчанию.")
             return cls()
 
         instance = cls()
         for key, value in data.items():
-            if key in ['C_train_flag', 'Q_train_flag', 'C_load_params', 'Q_load_params',
-                       'det', 'transpile_before', 'enable_logging', 'save_visualizations', 'use_compile']:
+            if key in ['C_train_flag', 'Q_train_flag',
+                       'C_load_params', 'Q_load_params',
+                       'det', 'transpile_before', 'enable_logging',
+                       'save_visualizations', 'use_compile']:
                 if isinstance(value, str):
                     value = value.lower() == 'true'
             if key == 'device' and isinstance(value, str):

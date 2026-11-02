@@ -86,9 +86,11 @@ def _validate_image_split(split, image_names):
     for kind in ("train", "val", "test"):
         names = split[kind]
         if not names or len(names) != len(set(names)):
-            raise ValueError(f"{kind} split is empty or contains duplicate images")
+            raise ValueError(f"{kind} split is empty or "
+                              "contains duplicate images")
         if seen.intersection(names):
-            raise ValueError("Train, validation and test image IDs must not overlap")
+            raise ValueError("Train, validation and test "
+                            "image IDs must not overlap")
         seen.update(names)
     if seen != set(image_names):
         raise ValueError("Splits must cover exactly the original image pool")
@@ -120,15 +122,19 @@ def split_image_pool(image_names, image_to_classes, num_classes, seed=42,
     """
     if not (val_fraction > 0 and test_fraction > 0
             and val_fraction + test_fraction < 1):
-        raise ValueError("Require val_fraction > 0, test_fraction > 0, sum < 1")
+        raise ValueError(
+            "Require val_fraction > 0, test_fraction > 0, "
+            "sum < 1"
+        )
     names = sorted(image_names)
     if len(names) != len(set(names)):
         raise ValueError("Image pool contains duplicate filenames")
     if len(names) < 3:
-        raise ValueError("At least three images are required for train/val/test")
+        raise ValueError("At least three images are required "
+                         "for train/val/test")
     n = len(names)
-    ratios = np.array((1 - val_fraction - test_fraction, val_fraction, test_fraction),
-                      dtype=np.float64)
+    ratios = np.array((1 - val_fraction - test_fraction, val_fraction,
+                       test_fraction), dtype=np.float64)
     capacities = _apportion(n, ratios, ensure_nonempty=True)
     labels = np.zeros((n, num_classes + 1), dtype=np.uint8)
     for i, name in enumerate(names):
@@ -160,11 +166,18 @@ def split_image_pool(image_names, image_to_classes, num_classes, seed=42,
         sample = int(pool.pop())
         available = np.flatnonzero(assigned_sizes < capacities)
         active = np.flatnonzero(labels[sample])
-        primary_deficit = target_labels[available, label] - assigned_labels[available, label]
+        primary_deficit = (
+            target_labels[available, label]
+            - assigned_labels[available, label]
+        )
         context_deficit = np.maximum(
-            0, target_labels[available][:, active] - assigned_labels[available][:, active]
+            0, target_labels[available][:, active]
+            - assigned_labels[available][:, active]
         ).sum(axis=1)
-        space = (capacities[available] - assigned_sizes[available]) / capacities[available]
+        space = (
+            (capacities[available] - assigned_sizes[available])
+            / capacities[available]
+        )
         score = (10.0 * primary_deficit + 0.10 * context_deficit
                  + 0.01 * space - 0.0001 * split_rank[available])
         chosen = int(available[np.argmax(score)])
@@ -210,10 +223,13 @@ def save_split_manifest(checkpoint_dir, csv_path, split, seed, val_fraction,
         "images": split,
     }
     fingerprint = hashlib.sha256(
-        json.dumps(payload, ensure_ascii=True, sort_keys=True).encode("utf-8")
+        json.dumps(
+            payload, ensure_ascii=True, sort_keys=True
+            ).encode("utf-8")
     ).hexdigest()
     manifest = {
-        "description": "Severstal classification image-level stratified split; train.csv unchanged",
+        "description": "Severstal classification image-level stratified split; "
+            "train.csv unchanged",
         "train_csv": str(Path(csv_path).resolve()),
         "split_fingerprint": fingerprint,
         **payload,
@@ -230,13 +246,15 @@ def save_split_manifest(checkpoint_dir, csv_path, split, seed, val_fraction,
             )
     else:
         manifest_file.write_text(
-            json.dumps(manifest, indent=2, ensure_ascii=True) + "\n", encoding="utf-8"
+            json.dumps(manifest, indent=2, ensure_ascii=True) + "\n",
+            encoding="utf-8"
         )
     print(f"Split manifest: {manifest_file} | sha256={fingerprint[:12]}")
     return fingerprint
 
 
-def _print_split_summary(split_name, image_names, image_to_classes, class_ids):
+def _print_split_summary(split_name, image_names, 
+                         image_to_classes, class_ids):
     """Print per-class positive counts for a split.
 
     Args:
@@ -309,7 +327,9 @@ def load_severstal_data(root, train_part=0.7, val_part=0.15, random_state=42,
     class_to_idx = {cls: i for i, cls in enumerate(class_list)}
 
     if not os.path.exists(img_dir):
-        raise FileNotFoundError(f"Папка с изображениями не найдена: {img_dir}")
+        raise FileNotFoundError(
+            f"Папка с изображениями не найдена: {img_dir}"
+            )
 
     all_filenames = sorted(
         f for f in os.listdir(img_dir) if f.lower().endswith('.jpg')
@@ -324,23 +344,31 @@ def load_severstal_data(root, train_part=0.7, val_part=0.15, random_state=42,
 
     test_fraction = max(0.0, 1.0 - train_part - val_part)
     if val_part <= 0 or test_fraction <= 0 or train_part <= 0:
-        raise ValueError("train_part, val_part и (1 - train_part - val_part) должны быть > 0")
+        raise ValueError(
+            "train_part, val_part и (1 - train_part - val_part) "
+            "должны быть > 0"
+            )
 
     split = split_image_pool(
         all_filenames, image_to_idx, num_classes,
-        seed=random_state, val_fraction=val_part, test_fraction=test_fraction,
+        seed=random_state, val_fraction=val_part,
+        test_fraction=test_fraction
     )
 
     split_fingerprint = None
     if checkpoint_dir is not None:
         split_fingerprint = save_split_manifest(
             checkpoint_dir, csv_path, split,
-            seed=random_state, val_fraction=val_part, test_fraction=test_fraction,
+            seed=random_state, val_fraction=val_part,
+            test_fraction=test_fraction,
             image_dir=img_dir,
         )
-        _print_split_summary('TRAIN', split['train'], image_to_classes, class_list)
-        _print_split_summary('VAL',   split['val'],   image_to_classes, class_list)
-        _print_split_summary('TEST',  split['test'],  image_to_classes, class_list)
+        _print_split_summary('TRAIN', split['train'],
+                             image_to_classes, class_list)
+        _print_split_summary('VAL',   split['val'],  
+                             image_to_classes, class_list)
+        _print_split_summary('TEST',  split['test'], 
+                             image_to_classes, class_list)
 
     def _build(filenames):
         """Build path and label lists for the given filenames.

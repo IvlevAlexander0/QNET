@@ -149,3 +149,4 @@ def create_encoding(encoding_type, num_features):
         return _create_state_encoding(num_features)
     else:
         raise ValueError(f"Unknown encoding type: {encoding_type}")
+    

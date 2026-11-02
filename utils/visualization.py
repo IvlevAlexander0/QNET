@@ -87,7 +87,8 @@ def _denormalize(img_tensor, transform):
     return img_tensor.squeeze(0).squeeze(0).cpu().numpy()
 
 
-def save_predictions_from_folder(model, folder, class_names, device, transform,
+def save_predictions_from_folder(model, folder, class_names,
+                                 device, transform,
                                  save_dir, threshold=0.5):
     """Run a model over a folder of images and save annotated visualizations.
 
@@ -111,9 +112,11 @@ def save_predictions_from_folder(model, folder, class_names, device, transform,
     num_classes = len(class_names)
 
     valid_ext = ('.jpg', '.jpeg', '.png', '.bmp')
-    files = sorted(f for f in os.listdir(folder) if f.lower().endswith(valid_ext))
+    files = sorted(f for f in os.listdir(folder) 
+                   if f.lower().endswith(valid_ext))
     if not files:
-        print(f"[save_predictions_from_folder] В папке {folder} нет изображений.")
+        print(f"[save_predictions_from_folder] В папке "
+              f"{folder} нет изображений.")
         return []
 
     os.makedirs(save_dir, exist_ok=True)
@@ -128,7 +131,8 @@ def save_predictions_from_folder(model, folder, class_names, device, transform,
                 true_vec = np.array([int(c) for c in stem], dtype=np.float32)
             else:
                 print(f"[save_predictions_from_folder] Пропуск {fname}: "
-                      f"имя не соответствует формату бинарной строки длины {num_classes}.")
+                      f"имя не соответствует формату бинарной строки "
+                      f"длины {num_classes}.")
                 continue
 
             img = Image.open(img_path).convert('L')
@@ -142,11 +146,15 @@ def save_predictions_from_folder(model, folder, class_names, device, transform,
             ax.imshow(img_disp, cmap='gray', vmin=0, vmax=1)
             ax.axis('off')
 
-            true_classes = [class_names[j] for j, v in enumerate(true_vec) if v == 1]
-            pred_classes = [class_names[j] for j, v in enumerate(pred_vec) if v == 1]
+            true_classes = [class_names[j] for j, v in enumerate(true_vec)
+                            if v == 1]
+            pred_classes = [class_names[j] for j, v in enumerate(pred_vec)
+                            if v == 1]
 
-            true_str = ", ".join(true_classes) if true_classes else "Нет дефектов"
-            pred_str = ", ".join(pred_classes) if pred_classes else "Нет дефектов"
+            true_str = (", ".join(true_classes) if true_classes
+                        else "Нет дефектов")
+            pred_str = (", ".join(pred_classes) if pred_classes
+                        else "Нет дефектов")
 
             title = (
                 f"{fname}\n"

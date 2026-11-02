@@ -20,7 +20,9 @@ class EfficientNetFeatureExtractor(nn.Module):
             None.
         """
         super().__init__()
-        self.base = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
+        self.base = (
+            efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
+        )
         self.base.classifier = nn.Identity()
 
     def forward(self, x):
@@ -143,13 +145,16 @@ class HybridQNet(nn.Module):
         self.BN_in = nn.BatchNorm1d(self.num_features)
 
         self.q_net1 = build_quantum_layer(
-            self.num_features, num_classes, config, reps_default=model_config['reps']
+            self.num_features, num_classes,
+            config, reps_default=model_config['reps']
         )
         self.q_net2 = build_quantum_layer(
-            self.num_features, num_classes, config, reps_default=model_config['reps']
+            self.num_features, num_classes,
+            config, reps_default=model_config['reps']
         )
         self.q_net3 = build_quantum_layer(
-            self.num_features, num_classes, config, reps_default=model_config['reps']
+            self.num_features, num_classes,
+            config, reps_default=model_config['reps']
         )
 
         q_out_size = self.q_net1.output_shape[0]
@@ -230,8 +235,9 @@ def create_efficientnet_model(mode, num_classes, input_shape, config):
             'model_name': 'efficientnet',
             'classical_params': classical_params,
             'quantum_params': [],
-            'classical_prefix': ['feature_extractor.', 'feature_BN.', 'projection.',
-                                'BN_in.', 'c_net', 'BN_out.', 'final.'],
+            'classical_prefix': ['feature_extractor.', 'feature_BN.',
+                                 'projection.', 'BN_in.', 'c_net',
+                                 'BN_out.', 'final.'],
             'quantum_prefix': None,
             'base_model': model_,
         }
@@ -241,12 +247,14 @@ def create_efficientnet_model(mode, num_classes, input_shape, config):
         hybrid_model = HybridQNet(num_classes, config)
         model = nn.Sequential(hybrid_model, nn.Sigmoid())
 
-        classical_params = list(hybrid_model.feature_extractor.parameters()) + \
-                        list(hybrid_model.feature_BN.parameters()) + \
-                        list(hybrid_model.projection.parameters()) + \
-                        list(hybrid_model.BN_in.parameters()) + \
-                        list(hybrid_model.BN_out.parameters()) + \
-                        list(hybrid_model.final.parameters())
+        classical_params = (
+            list(hybrid_model.feature_extractor.parameters()) + \
+            list(hybrid_model.feature_BN.parameters()) + \
+            list(hybrid_model.projection.parameters()) + \
+            list(hybrid_model.BN_in.parameters()) + \
+            list(hybrid_model.BN_out.parameters()) + \
+            list(hybrid_model.final.parameters())
+            )
         quantum_params = list(hybrid_model.q_net1.parameters()) + \
                         list(hybrid_model.q_net2.parameters()) + \
                         list(hybrid_model.q_net3.parameters())
@@ -255,8 +263,9 @@ def create_efficientnet_model(mode, num_classes, input_shape, config):
             'model_name': 'efficientnet',
             'classical_params': classical_params,
             'quantum_params': quantum_params,
-            'classical_prefix': ['feature_extractor.', 'feature_BN.', 'projection.',
-                                'BN_in.', 'BN_out.', 'final.'],
+            'classical_prefix': ['feature_extractor.', 'feature_BN.',
+                                 'projection.', 'BN_in.',
+                                 'BN_out.', 'final.'],
             'quantum_prefix': 'q_net.',
             'base_model': hybrid_model,
         }

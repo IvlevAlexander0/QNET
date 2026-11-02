@@ -44,5 +44,8 @@ def create_model(config, num_classes, input_shape):
         KeyError: If no creator is registered under ``config.model_name``.
     """
     creator = get_model_creator(config.model_name)
-    model, info = creator(config.model_mode, num_classes, input_shape, config)
+    model, info = creator(
+        config.model_mode, num_classes,
+        input_shape, config
+        )
     return model, info

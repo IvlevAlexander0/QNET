@@ -31,7 +31,9 @@ def register_model(*names):
         for name in names:
             existing = _MODEL_REGISTRY.get(name)
             if existing is not None and existing is not fn:
-                raise ValueError(f"Model '{name}' is already registered by {existing}")
+                raise ValueError(
+                    f"Model '{name}' is already registered by {existing}"
+                    )
             _MODEL_REGISTRY[name] = fn
         return fn
     return decorator

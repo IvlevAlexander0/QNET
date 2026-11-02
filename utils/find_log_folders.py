@@ -46,15 +46,23 @@ def find_log_folders(log_root, model_name=None, model_mode=None,
             time_str = match.group(2)
             try:
                 if time_str:
-                    dt = datetime.strptime(f'{date_str}_{time_str}', '%Y%m%d_%H%M%S')
+                    dt = datetime.strptime(
+                        f'{date_str}_{time_str}', '%Y%m%d_%H%M%S'
+                        )
                 else:
-                    dt = datetime.strptime(date_str, '%Y%m%d')
+                    dt = datetime.strptime(
+                        date_str, '%Y%m%d'
+                        )
                 if after_date is not None:
                     if isinstance(after_date, str):
                         if '_' in after_date:
-                            after_dt = datetime.strptime(after_date, '%Y%m%d_%H%M%S')
+                            after_dt = datetime.strptime(
+                                after_date, '%Y%m%d_%H%M%S'
+                                )
                         else:
-                            after_dt = datetime.strptime(after_date, '%Y%m%d')
+                            after_dt = datetime.strptime(
+                                after_date, '%Y%m%d'
+                                )
                     else:
                         after_dt = after_date
                     if dt < after_dt:
@@ -82,9 +90,17 @@ def find_log_folders(log_root, model_name=None, model_mode=None,
         if os.path.exists(checkpoint_path):
             try:
                 try:
-                    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
+                    checkpoint = torch.load(
+                        checkpoint_path, 
+                        map_location='cpu', 
+                        weights_only=True
+                        )
                 except Exception:
-                    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+                    checkpoint = torch.load(
+                        checkpoint_path, 
+                        map_location='cpu', 
+                        weights_only=False
+                        )
                 epoch = checkpoint.get('epoch', 0)
                 epochs_completed = epoch + 1
             except Exception:

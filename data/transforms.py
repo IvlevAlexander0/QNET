@@ -276,17 +276,23 @@ def get_transforms(in_height, in_width, mean, std, noise_config=None,
 
     if noise_config:
         if noise_config.get('jpeg_quality') is not None:
-            test_transforms.append(JPEGCompression(quality=noise_config['jpeg_quality']))
+            test_transforms.append(
+                JPEGCompression(quality=noise_config['jpeg_quality']))
         if noise_config.get('gaussian_std') is not None:
-            test_transforms.append(AddGaussianNoise(std=noise_config['gaussian_std']))
+            test_transforms.append(
+                AddGaussianNoise(std=noise_config['gaussian_std']))
         if noise_config.get('poisson_scale') is not None:
-            test_transforms.append(AddPoissonNoise(scale=noise_config['poisson_scale']))
+            test_transforms.append(
+                AddPoissonNoise(scale=noise_config['poisson_scale']))
         if noise_config.get('salt_pepper_prob') is not None:
-            test_transforms.append(AddSaltPepperNoise(prob=noise_config['salt_pepper_prob']))
+            test_transforms.append(
+                AddSaltPepperNoise(prob=noise_config['salt_pepper_prob']))
         if noise_config.get('speckle_std') is not None:
-            test_transforms.append(AddSpeckleNoise(std=noise_config['speckle_std']))
+            test_transforms.append(
+                AddSpeckleNoise(std=noise_config['speckle_std']))
         if noise_config.get('motion_degree') is not None:
-            test_transforms.append(Blur(degree=noise_config['motion_degree']))
+            test_transforms.append(
+                Blur(degree=noise_config['motion_degree']))
 
     test_transforms.append(transforms.Normalize(mean=mean, std=std))
     test_transform = transforms.Compose(test_transforms)

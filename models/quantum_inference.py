@@ -125,12 +125,16 @@ class FrozenQNet(nn.Module):
         if self.input_transform is not None:
             x = self.input_transform(x)
 
-        device = x.device if isinstance(x, torch.Tensor) else torch.device("cpu")
-        if isinstance(x, torch.Tensor) and x.dtype in (torch.float16, torch.bfloat16):
+        device =(
+            x.device if isinstance(x, torch.Tensor) else torch.device("cpu")
+        )
+        if isinstance(x, torch.Tensor) and x.dtype in (torch.float16,
+                                                       torch.bfloat16):
             x = x.float()
 
         x_np = (x.detach().cpu().numpy()
-                if isinstance(x, torch.Tensor) else np.asarray(x, dtype=np.float32))
+                if isinstance(x, torch.Tensor) else np.asarray(
+                    x, dtype=np.float32))
         if x_np.ndim == 1:
             x_np = x_np.reshape(1, -1)
         weights_np = np.empty((x_np.shape[0], 0), dtype=np.float64)
@@ -205,13 +209,19 @@ def freeze_for_inference(model, info=None, transpile=True, inplace=False):
     """
     if not inplace:
         model = copy.deepcopy(model)
-    quantum_prefix = info.get("quantum_prefix") if isinstance(info, dict) else None
+    quantum_prefix = (
+        info.get("quantum_prefix") if isinstance(info, dict) else None
+        )
 
-    base = model[0] if isinstance(model, nn.Sequential) and len(model) > 0 else model
+    base = (
+        model[0] if isinstance(model,
+                               nn.Sequential) and len(model) > 0 else model
+    )
 
     frozen = 0
     for name, module in list(_iter_quantum_children(base, quantum_prefix)):
-        setattr(base, name, FrozenQNet.from_trained(module, transpile=transpile))
+        setattr(base, name,
+                FrozenQNet.from_trained(module, transpile=transpile))
         frozen += 1
 
     if frozen > 0:

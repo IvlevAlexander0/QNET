@@ -35,7 +35,8 @@ def _entanglement_pairs(num_qubits, entanglement):
             pairs.append((num_qubits - 1, 0))
         return pairs
     if entanglement == 'full':
-        return [(i, j) for i in range(num_qubits) for j in range(i + 1, num_qubits)]
+        return [(i, j) for i in range(num_qubits) 
+                for j in range(i + 1, num_qubits)]
     raise ValueError(f"Unknown entanglement type: {entanglement}")
 
 

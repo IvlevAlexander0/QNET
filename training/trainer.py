@@ -94,7 +94,8 @@ def _as_device(device):
     Returns:
         ``torch.device`` instance.
     """
-    return device if isinstance(device, torch.device) else torch.device(device)
+    return (device if isinstance(device, torch.device)
+            else torch.device(device))
 
 
 def _compute_loss_fp32(loss_fn, probs, target):
@@ -113,8 +114,9 @@ def _compute_loss_fp32(loss_fn, probs, target):
         return loss_fn(probs.float(), target.float())
 
 
-def train_one_epoch(model, dataloader, loss_fn, optimizer, device, num_classes,
-                    threshold=0.5, eps=1e-7, scaler=None, amp_dtype=None):
+def train_one_epoch(model, dataloader, loss_fn, optimizer,
+                    device, num_classes, threshold=0.5,
+                    eps=1e-7, scaler=None, amp_dtype=None):
     """Train ``model`` for one epoch.
 
     Args:
@@ -157,7 +159,8 @@ def train_one_epoch(model, dataloader, loss_fn, optimizer, device, num_classes,
 
         optimizer.zero_grad(set_to_none=True)
 
-        with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=use_amp):
+        with torch.autocast(device_type=device.type,
+                            dtype=amp_dtype, enabled=use_amp):
             probs = model(data)
 
         loss = _compute_loss_fp32(loss_fn, probs, target)
@@ -176,14 +179,17 @@ def train_one_epoch(model, dataloader, loss_fn, optimizer, device, num_classes,
         total_loss_items += batch_items
 
         probs_f = probs.detach().float()
-        acc, tp, fp, fn = compute_metrics(probs_f, target, threshold, return_counts=True)
+        acc, tp, fp, fn = compute_metrics(
+            probs_f, target, threshold, return_counts=True
+            )
         total_correct += acc
         total_items += batch_items
         total_tp += tp
         total_fp += fp
         total_fn += fn
 
-        running_loss = total_loss / total_loss_items if total_loss_items else 0.0
+        running_loss = (total_loss / total_loss_items
+                        if total_loss_items else 0.0)
         running_acc = total_correct / total_items if total_items else 0.0
         loop.set_postfix(loss=running_loss, acc=running_acc)
 
@@ -194,7 +200,8 @@ def train_one_epoch(model, dataloader, loss_fn, optimizer, device, num_classes,
     macro_rec = total_tp / (total_tp + total_fn + eps)
     macro_f1 = 2 * macro_prec * macro_rec / (macro_prec + macro_rec + eps)
 
-    return avg_loss, avg_acc, macro_prec, macro_rec, macro_f1, total_tp, total_fp, total_fn
+    return (avg_loss, avg_acc, macro_prec, macro_rec, macro_f1,
+            total_tp, total_fp, total_fn)
 
 
 def evaluate(model, dataloader, loss_fn, device, num_classes, threshold=0.5,
@@ -237,7 +244,9 @@ def evaluate(model, dataloader, loss_fn, device, num_classes, threshold=0.5,
             data = data.to(device, non_blocking=True)
             target = target.to(device, non_blocking=True).float()
 
-            with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=use_amp):
+            with torch.autocast(
+                device_type=device.type, dtype=amp_dtype, enabled=use_amp
+                ):
                 probs = model(data)
 
             loss = _compute_loss_fp32(loss_fn, probs, target)
@@ -248,7 +257,9 @@ def evaluate(model, dataloader, loss_fn, device, num_classes, threshold=0.5,
             total_loss_items += batch_items
 
             probs_f = probs.float()
-            acc, tp, fp, fn = compute_metrics(probs_f, target, threshold, return_counts=True)
+            acc, tp, fp, fn = compute_metrics(
+                probs_f, target, threshold, return_counts=True
+                )
             total_correct += acc
             total_items += batch_items
             total_tp += tp
@@ -262,4 +273,5 @@ def evaluate(model, dataloader, loss_fn, device, num_classes, threshold=0.5,
     macro_rec = total_tp / (total_tp + total_fn + eps)
     macro_f1 = 2 * macro_prec * macro_rec / (macro_prec + macro_rec + eps)
 
-    return avg_loss, avg_acc, macro_prec, macro_rec, macro_f1, total_tp, total_fp, total_fn
+    return (avg_loss, avg_acc, macro_prec, macro_rec, macro_f1,
+            total_tp, total_fp, total_fn)

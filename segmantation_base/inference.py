@@ -63,7 +63,8 @@ CLASS_COLORS = np.asarray(
     ((230, 57, 70), (33, 158, 88), (52, 121, 220), (245, 164, 50)),
     dtype=np.uint8,
 )
-IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"})
+IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png",
+                              ".bmp", ".tif", ".tiff"})
 DEFAULT_TARGET_SIZE = (256, 512)  # V3 DEFAULT_IMAGE_SIZE: height, width.
 
 
@@ -73,7 +74,9 @@ def _parse_rgb_color(color):
         text = color.strip().lstrip("#")
         if len(text) == 3:
             text = "".join(ch * 2 for ch in text)
-        if len(text) != 6 or any(ch not in "0123456789abcdefABCDEF" for ch in text):
+        if len(text) != 6 or any(
+            ch not in "0123456789abcdefABCDEF"for ch in text
+            ):
             raise ValueError(f"Invalid color string: {color!r}")
         return tuple(int(text[i:i + 2], 16) for i in (0, 2, 4))
     if isinstance(color, (list, tuple)) and len(color) == 3:
@@ -98,7 +101,9 @@ class InferenceConfig:
     device = None
     num_classes = 4
     class_names = None
-    class_colors = tuple(tuple(int(c) for c in color) for color in CLASS_COLORS)
+    class_colors = tuple(
+        tuple(int(c) for c in color) for color in CLASS_COLORS
+        )
 
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
@@ -125,12 +130,15 @@ class InferenceConfig:
     @classmethod
     def _from_dict(cls, data):
         if not isinstance(data, dict):
-            raise TypeError(f"Config must be a dict, got {type(data).__name__}")
+            raise TypeError(
+                f"Config must be a dict, got {type(data).__name__}"
+                )
         instance = cls()
 
         # Checkpoint: prefer the generic key; then fall back to training keys.
         # "__.pth" is the training-script sentinel for "not set".
-        for key in ("checkpoint", "c_load_path", "q_load_path", "h_load_path"):
+        for key in ("checkpoint", "c_load_path",
+                    "q_load_path", "h_load_path"):
             value = data.get(key)
             if not value:
                 continue
@@ -145,19 +153,27 @@ class InferenceConfig:
         # the V3 training crop size.
         if data.get("target_size") is not None:
             instance.target_size = tuple(int(v) for v in data["target_size"])
-        elif data.get("in_height") is not None and data.get("in_width") is not None:
-            instance.target_size = (int(data["in_height"]), int(data["in_width"]))
+        elif (data.get("in_height") is not None
+              and data.get("in_width") is not None):
+            instance.target_size = (
+                int(data["in_height"]), int(data["in_width"])
+                )
             if instance.target_size != tuple(DEFAULT_TARGET_SIZE):
                 print(
                     f"WARNING: config has in_height={data['in_height']} "
-                    f"in_width={data['in_width']}; using {instance.target_size} "
-                    f"as the sliding-window size. The V3 model was trained on "
-                    f"{DEFAULT_TARGET_SIZE[0]}x{DEFAULT_TARGET_SIZE[1]} crops; "
+                    f"in_width={data['in_width']}; "
+                    f"using {instance.target_size} "
+                    "as the sliding-window size. "
+                    "The V3 model was trained on "
+                    f"{DEFAULT_TARGET_SIZE[0]}x{DEFAULT_TARGET_SIZE[1]} "
+                    "crops; "
                     "add an explicit 'target_size' key to silence this."
                 )
 
         if data.get("transform_type"):
-            instance.transform_type = str(data["transform_type"]).strip().lower()
+            instance.transform_type = str(
+                data["transform_type"]
+                ).strip().lower()
         if data.get("threshold") is not None:
             instance.threshold = float(data["threshold"])
         if data.get("device"):
@@ -171,7 +187,9 @@ class InferenceConfig:
 
         colors = data.get("class_colors")
         if colors:
-            instance.class_colors = tuple(_parse_rgb_color(color) for color in colors)
+            instance.class_colors = tuple(
+                _parse_rgb_color(color) for color in colors
+                )
 
         return instance
 
@@ -197,26 +215,34 @@ def _load_training_module():
             "severstal_V3_FPN_QuFeX_phase_readout(1).py",
         ):
             candidates.append(folder / name)
-        candidates.extend(sorted(folder.glob("severstal_V3_FPN_QuFeX_phase_readout*.py")))
+        candidates.extend(
+            sorted(folder.glob("severstal_V3_FPN_QuFeX_phase_readout*.py"))
+            )
 
     seen = set()
     for path in candidates:
         if path in seen or not path.is_file():
             continue
         seen.add(path)
-        spec = importlib.util.spec_from_file_location("_severstal_v3_inference_model", path)
+        spec = importlib.util.spec_from_file_location(
+            "_severstal_v3_inference_model", path
+            )
         if spec is None or spec.loader is None:
             continue
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
-        for symbol in ("build_model", "predict_full_logits", "IMAGENET_MEAN", "IMAGENET_STD"):
+        for symbol in ("build_model", "predict_full_logits",
+                       "IMAGENET_MEAN", "IMAGENET_STD"):
             if not hasattr(module, symbol):
-                raise ImportError(f"Training module {path} does not define {symbol}")
+                raise ImportError(
+                    f"Training module {path} does not define {symbol}"
+                )
         return module
     raise FileNotFoundError(
         "Severstal V3 training module not found. Put "
-        "severstal_V3_FPN_QuFeX_phase_readout.py alongside this inference script."
+        "severstal_V3_FPN_QuFeX_phase_readout.py "
+        "alongside this inference script."
     )
 
 
@@ -254,13 +280,17 @@ class SegmentationInference:
 
         resolved_device = device if device is not None else config.device
         self.device = torch.device(
-            resolved_device or ("cuda" if torch.cuda.is_available() else "cpu")
+            resolved_device or (
+                "cuda" if torch.cuda.is_available() else "cpu"
+                )
         )
         if self.device.type == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("CUDA requested, but it is not available")
 
         self.checkpoint_path = checkpoint_path
-        self.transform_type = transform_type or config.transform_type or "crop"
+        self.transform_type = (
+            transform_type or config.transform_type or "crop"
+        )
         self.transform_types = ["crop", "resize"]
         if self.transform_type not in self.transform_types:
             raise ValueError(
@@ -270,44 +300,66 @@ class SegmentationInference:
 
         # Training checkpoints contain numpy RNG state and are not always loadable
         # with weights_only=True. Only load .pth files from trusted sources.
-        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-        if not isinstance(checkpoint, dict) or "model_state_dict" not in checkpoint:
-            raise ValueError("Checkpoint must contain the V3 model_state_dict")
+        checkpoint = torch.load(checkpoint_path,
+                                map_location="cpu", weights_only=False)
+        if (not isinstance(checkpoint, dict)
+            or "model_state_dict" not in checkpoint):
+            raise ValueError(
+                "Checkpoint must contain the V3 model_state_dict"
+                )
         self.training_module = _load_training_module()
         model_type = str(checkpoint.get("model_type", "")).strip().lower()
         if model_type not in ("classic", "hybrid"):
-            raise ValueError(f"Checkpoint has unsupported model_type: {model_type!r}")
+            raise ValueError(
+                f"Checkpoint has unsupported model_type: {model_type!r}"
+                )
         self.model_type = model_type
 
         architecture = checkpoint.get("architecture")
         current_architecture = self.training_module.ARCHITECTURE_ID
-        legacy_architecture = getattr(self.training_module, "LEGACY_ARCHITECTURE_ID", None)
+        legacy_architecture = getattr(self.training_module,
+                                      "LEGACY_ARCHITECTURE_ID", None)
         if architecture != current_architecture:
-            if not (model_type == "classic" and architecture == legacy_architecture):
-                if architecture == legacy_architecture and model_type == "hybrid":
+            if not (model_type == "classic"
+                    and architecture == legacy_architecture):
+                if (architecture == legacy_architecture
+                    and model_type == "hybrid"):
                     raise ValueError(
-                        "This is a hybrid checkpoint with the old YY readout. "
-                        "Current hybrid XY readout requires a retrained checkpoint."
+                        "This is a hybrid checkpoint with "
+                        "the old YY readout. "
+                        "Current hybrid XY readout "
+                        "requires a retrained checkpoint."
                     )
                 raise ValueError(
-                    f"Checkpoint architecture {architecture!r} does not match "
+                    f"Checkpoint architecture {architecture!r} "
+                    "does not match "
                     f"current V3 architecture {current_architecture!r}."
                 )
 
-        self.num_classes = int(checkpoint.get("num_classes", self.training_module.NUM_CLASSES))
-        if self.num_classes != self.training_module.NUM_CLASSES or self.num_classes != 4:
-            raise ValueError(f"Expected four defect channels, got {self.num_classes}")
-        if config.num_classes is not None and int(config.num_classes) != self.num_classes:
+        self.num_classes = int(
+            checkpoint.get("num_classes", self.training_module.NUM_CLASSES)
+            )
+        if (self.num_classes != self.training_module.NUM_CLASSES
+            or self.num_classes != 4):
             raise ValueError(
-                f"config num_classes={config.num_classes} disagrees with checkpoint "
+                f"Expected four defect channels, got {self.num_classes}"
+                )
+        if (config.num_classes is not None
+            and int(config.num_classes) != self.num_classes):
+            raise ValueError(
+                f"config num_classes={config.num_classes} "
+                f"disagrees with checkpoint "
                 f"num_classes={self.num_classes}"
             )
 
-        self.class_ids = tuple(int(i) for i in checkpoint.get("class_ids", (1, 2, 3, 4)))
+        self.class_ids = tuple(int(i) for i in checkpoint.get("class_ids", 
+                                                              (1, 2, 3, 4)))
         if len(self.class_ids) != self.num_classes:
             raise ValueError("Checkpoint class_ids and num_classes disagree")
 
-        checkpoint_size = tuple(int(v) for v in checkpoint.get("image_size", DEFAULT_TARGET_SIZE))
+        checkpoint_size = tuple(
+            int(v) for v in checkpoint.get("image_size", DEFAULT_TARGET_SIZE)
+            )
         self.training_module.validate_image_geometry(checkpoint_size)
         self._training_crop_size = checkpoint_size
         effective_target_size = (
@@ -316,14 +368,19 @@ class SegmentationInference:
         if effective_target_size is None:
             effective_target_size = checkpoint_size
         self.target_size = tuple(int(v) for v in effective_target_size)
-        if len(self.target_size) != 2 or any(v <= 0 for v in self.target_size):
-            raise ValueError("target_size must be (positive height, positive width)")
+        if (len(self.target_size) != 2
+            or any(v <= 0 for v in self.target_size)):
+            raise ValueError(
+                "target_size must be (positive height, positive width)"
+                )
         if self.transform_type == "crop":
             self.training_module.validate_image_geometry(self.target_size)
         if tuple(self.target_size) != checkpoint_size:
             print(
-                f"WARNING: target size {self.target_size} differs from training "
-                f"crop size {checkpoint_size}; use training size for best comparability."
+                f"WARNING: target size {self.target_size} "
+                "differs from training "
+                f"crop size {checkpoint_size}; "
+                "use training size for best comparability."
             )
 
         self.model = self.training_module.build_model(
@@ -334,7 +391,8 @@ class SegmentationInference:
             batch_circuit_size=4096,
             pretrained_encoder=False,
         )
-        self.model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        self.model.load_state_dict(checkpoint["model_state_dict"],
+                                   strict=True)
         self.model.to(self.device)
         if self.device.type == "cuda":
             self.model.to(memory_format=torch.channels_last)
@@ -350,10 +408,13 @@ class SegmentationInference:
         self._tile_overlap = 128
         self._amp_dtype = None
         if self.device.type == "cuda":
-            self._amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+            self._amp_dtype = (torch.bfloat16 
+                               if torch.cuda.is_bf16_supported() 
+                               else torch.float16)
         print(f"Model loaded from {checkpoint_path}")
         print(f"Model type: {model_type}; classes: {self.class_ids}")
-        print(f"Target size: {self.target_size}; transform type: {self.transform_type}")
+        print(f"Target size: {self.target_size}; ")
+        print(f"transform type: {self.transform_type}")
 
     def _resolve_class_colors(self, config):
         colors = np.asarray(config.class_colors, dtype=np.uint8)
@@ -399,11 +460,14 @@ class SegmentationInference:
         source_w, source_h = image.size
         target_h, target_w = (int(target_size[0]), int(target_size[1]))
         if min(source_w, source_h, target_h, target_w) < 1:
-            raise ValueError("Source and target image dimensions must be positive")
+            raise ValueError(
+                "Source and target image dimensions must be positive"
+                )
         scale = min(target_w / source_w, target_h / source_h)
         new_w = max(1, min(target_w, round(source_w * scale)))
         new_h = max(1, min(target_h, round(source_h * scale)))
-        resized_image = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        resized_image = image.resize((new_w, new_h),
+                                     Image.Resampling.LANCZOS)
         pad_left = (target_w - new_w) // 2
         pad_right = target_w - new_w - pad_left
         pad_top = (target_h - new_h) // 2
@@ -413,20 +477,29 @@ class SegmentationInference:
             border=(pad_left, pad_top, pad_right, pad_bottom),
             fill=0,
         )
-        return padded_image, (scale, scale), (pad_top, pad_bottom, pad_left, pad_right)
+        return (
+            padded_image, (scale, scale), 
+            (pad_top, pad_bottom, pad_left, pad_right)
+            )
 
-    def remove_padding_from_mask(self, mask, original_size, padding, scale_factor):
+    def remove_padding_from_mask(
+            self, mask, original_size, padding, scale_factor
+            ):
         """Restore a [H,W] or [C,H,W] mask, preserving float probabilities."""
         del scale_factor  # Cropping by exact padding is more accurate than inverse scaling.
         array = np.asarray(mask)
         single_channel = array.ndim == 2
         if not single_channel and array.ndim != 3:
             raise ValueError("Mask must be [H,W] or [C,H,W]")
-        original_width, original_height = (int(original_size[0]), int(original_size[1]))
+        original_width, original_height = (int(original_size[0]),
+                                           int(original_size[1]))
         top, bottom, left, right = (int(v) for v in padding)
         h, w = array.shape[-2:]
-        if min(top, bottom, left, right) < 0 or top + bottom >= h or left + right >= w:
-            raise ValueError(f"Padding {padding} does not fit mask shape {array.shape}")
+        if (min(top, bottom, left, right) < 0
+            or top + bottom >= h or left + right >= w):
+            raise ValueError(
+                f"Padding {padding} does not fit mask shape {array.shape}"
+                )
         array = array[..., top:h - bottom if bottom else h,
                       left:w - right if right else w]
         data = torch.from_numpy(np.ascontiguousarray(array)).float()
@@ -435,10 +508,13 @@ class SegmentationInference:
         data = data.unsqueeze(0)
         discrete = not np.issubdtype(array.dtype, np.floating)
         if discrete:
-            restored = F.interpolate(data, size=(original_height, original_width), mode="nearest")
+            restored = F.interpolate(data,
+                                     size=(original_height, original_width),
+                                     mode="nearest")
         else:
             restored = F.interpolate(
-                data, size=(original_height, original_width), mode="bilinear", align_corners=False
+                data, size=(original_height, original_width),
+                mode="bilinear", align_corners=False
             )
         result = restored.squeeze(0).numpy()
         if single_channel:
@@ -447,7 +523,9 @@ class SegmentationInference:
 
     def _normalize_image(self, image_array):
         """Exact non-augmented V3 normalization: RGB uint8 / 255, ImageNet stats."""
-        rgb = torch.from_numpy(np.ascontiguousarray(image_array.transpose(2, 0, 1))).float()
+        rgb = torch.from_numpy(np.ascontiguousarray(
+            image_array.transpose(2, 0, 1)
+            )).float()
         rgb.div_(255.0).sub_(self._image_mean).div_(self._image_std)
         return rgb.unsqueeze(0).to(self.device)
 
@@ -470,8 +548,10 @@ class SegmentationInference:
             }
 
         if self.transform_type == "resize":
-            resized_image, scale_factor, padding = self.resize_image_with_padding(
-                original_image, self.target_size
+            resized_image, scale_factor, padding = (
+                self.resize_image_with_padding(
+                    original_image, self.target_size
+                )
             )
             image_array = np.asarray(resized_image).copy()
             return {
@@ -482,7 +562,10 @@ class SegmentationInference:
                 "scale_factor": scale_factor,
                 "padding": padding,
             }
-        raise ValueError(f"Unknown transform type, available transforms: {self.transform_types}")
+        raise ValueError(
+            f"Unknown transform type, available transforms: "
+            f"{self.transform_types}"
+            )
 
     def predict(self, image_path, threshold=None):
         """Predict four independent binary masks and float32 probabilities.
@@ -499,8 +582,11 @@ class SegmentationInference:
             raise ValueError("threshold must be between 0 and 1")
         preprocessed_data = self.preprocess_image(image_path)
         input_tensor = preprocessed_data["input_tensor"]
-        crop_size = self.target_size if self.transform_type == "crop" else self._training_crop_size
-        overlap = min(self._tile_overlap, crop_size[0] // 2, crop_size[1] // 2)
+        crop_size = (self.target_size if self.transform_type == "crop"
+                     else self._training_crop_size)
+        overlap = min(
+            self._tile_overlap, crop_size[0] // 2,crop_size[1] // 2
+            )
         with torch.inference_mode():
             with torch.autocast(
                 device_type=self.device.type,
@@ -515,7 +601,8 @@ class SegmentationInference:
                     tile_batch_size=self._tile_batch_size,
                 )
                 probs = torch.sigmoid(logits.float())
-            confidence_scores = probs[0].cpu().numpy().astype(np.float32, copy=False)
+            confidence_scores = probs[0].cpu().numpy().astype(np.float32,
+                                                              copy=False)
         if self.transform_type == "resize":
             confidence_scores = self.remove_padding_from_mask(
                 confidence_scores,
@@ -538,16 +625,28 @@ class SegmentationInference:
         masks = np.asarray(prediction_mask)
         if masks.ndim != 3 or masks.shape[0] != len(self.class_ids):
             raise ValueError(
-                f"Expected [{len(self.class_ids)},H,W] masks, got {masks.shape}"
+                f"Expected [{len(self.class_ids)},H,W] masks, "
+                f"got {masks.shape}"
             )
         totals = masks.astype(np.float32).sum(axis=0)[..., None]
         weighted = np.einsum("chw,cd->hwd", masks.astype(np.float32),
                              self.class_colors.astype(np.float32))
-        return np.clip(weighted / np.maximum(totals, 1), 0, 255).astype(np.uint8)
+        return np.clip(
+            weighted / np.maximum(totals, 1),
+            0,
+            255,
+        ).astype(np.uint8)
 
-    def visualize_prediction(self, image_path, threshold=None, save_path=None):
+    def visualize_prediction(
+            self, image_path, threshold=None, save_path=None
+            ):
         """Preserve the original 2x2 visualization, now color-coded for 4 classes."""
-        original_image, prediction_mask, confidence_scores, preprocessed_data = self.predict(
+        (
+            original_image,
+            prediction_mask,
+            confidence_scores,
+            preprocessed_data,
+        ) = self.predict(
             image_path, threshold
         )
         color_mask = self._mask_to_color(prediction_mask)
@@ -560,17 +659,22 @@ class SegmentationInference:
 
         fig, axes = plt.subplots(2, 2, figsize=(18, 12))
         axes[0, 0].imshow(original_image)
-        axes[0, 0].set_title("Original Image", fontsize=12, fontweight="bold")
+        axes[0, 0].set_title("Original Image", fontsize=12, 
+                             fontweight="bold")
         axes[0, 1].imshow(preprocessed_data["processed_image"])
-        mode_text = "tiled at native resolution" if self.transform_type == "crop" else "letterboxed"
+        mode_text = ("tiled at native resolution" 
+                     if self.transform_type == "crop" else "letterboxed")
         axes[0, 1].set_title(
-            f"Preprocessed ({mode_text}, {self.target_size[0]}x{self.target_size[1]})",
+            f"Preprocessed ({mode_text}, "
+            f"{self.target_size[0]}x{self.target_size[1]})",
             fontsize=12, fontweight="bold"
         )
         axes[1, 0].imshow(color_mask)
-        axes[1, 0].set_title("Prediction Mask (4 classes)", fontsize=12, fontweight="bold")
+        axes[1, 0].set_title("Prediction Mask (4 classes)", 
+                             fontsize=12, fontweight="bold")
         axes[1, 1].imshow(np.clip(overlay, 0, 255).astype(np.uint8))
-        axes[1, 1].set_title("Overlay on Original", fontsize=12, fontweight="bold")
+        axes[1, 1].set_title("Overlay on Original", 
+                             fontsize=12, fontweight="bold")
         for ax in axes.ravel():
             ax.axis("off")
         fig.legend(
@@ -580,7 +684,8 @@ class SegmentationInference:
             loc="lower center", ncol=4, bbox_to_anchor=(0.5, 0.01),
         )
         display_name = (
-            "image" if isinstance(image_path, Image.Image) else Path(image_path).name
+            "image" if isinstance(image_path, Image.Image)
+            else Path(image_path).name
         )
         fig.suptitle(
             f"Segmentation Results - {display_name}\n"
@@ -610,13 +715,13 @@ class SegmentationInference:
         masks_dir = Path(masks_dir)
         masks_dir.mkdir(parents=True, exist_ok=True)
         stem = self._display_stem(image_path)
-        Image.fromarray(self._mask_to_color(prediction_mask), mode="RGB").save(
-            masks_dir / f"mask_{stem}.png"
-        )
+        Image.fromarray(
+            self._mask_to_color(prediction_mask), mode="RGB"
+            ).save(masks_dir / f"mask_{stem}.png")
         for index, class_id in enumerate(self.class_ids):
-            Image.fromarray((prediction_mask[index] * 255).astype(np.uint8)).save(
-                masks_dir / f"mask_{stem}_class{class_id}.png"
-            )
+            Image.fromarray(
+                (prediction_mask[index] * 255).astype(np.uint8)
+                ).save(masks_dir / f"mask_{stem}_class{class_id}.png")
 
     def batch_predict(self, image_dir, output_dir=None, threshold=None):
         """Process a directory with the same result records and output layout."""
@@ -624,7 +729,9 @@ class SegmentationInference:
             threshold = self.default_threshold
         image_dir = Path(image_dir)
         if not image_dir.is_dir():
-            raise FileNotFoundError(f"Image directory not found: {image_dir}")
+            raise FileNotFoundError(
+                f"Image directory not found: {image_dir}"
+                )
         image_paths = sorted(
             path for path in image_dir.iterdir()
             if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
@@ -660,7 +767,8 @@ def _resolve_config(config_dict):
         if config_path.is_file():
             return InferenceConfig.from_json(config_path)
         raise ValueError(
-            "return_segmenter requires config_dict with at least 'checkpoint' "
+            "return_segmenter requires config_dict "
+            "with at least 'checkpoint' "
             "(or 'c_load_path'/'q_load_path'/'h_load_path'), "
             "or a config.json file in the working directory."
         )

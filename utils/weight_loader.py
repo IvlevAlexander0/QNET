@@ -4,7 +4,8 @@ import torch
 import logging
 
 
-def load_partial_weights(model, state_dict, prefixes, strict=False, logger=None):
+def load_partial_weights(model, state_dict, prefixes,
+                         strict=False, logger=None):
     """Load only model parameters whose names start with one of ``prefixes``.
 
     Args:
@@ -40,7 +41,8 @@ def load_partial_weights(model, state_dict, prefixes, strict=False, logger=None)
                 break
 
     if logger:
-        logger.info(f"Attempting to load {len(filtered_state)} parameters with prefixes {prefixes}")
+        logger.info(f"Attempting to load {len(filtered_state)} parameters "
+                    f"with prefixes {prefixes}")
 
     missing, unexpected = model.load_state_dict(filtered_state, strict=False)
 
@@ -49,7 +51,8 @@ def load_partial_weights(model, state_dict, prefixes, strict=False, logger=None)
     not_loaded = set(filtered_state.keys()) - model_keys
 
     if logger:
-        logger.info(f"Loaded {len(loaded_keys)} parameters, {len(not_loaded)} parameters were not used")
+        logger.info(f"Loaded {len(loaded_keys)} parameters, "
+                    f"{len(not_loaded)} parameters were not used")
         if missing:
             logger.warning(f"Missing keys: {missing}")
         if unexpected:

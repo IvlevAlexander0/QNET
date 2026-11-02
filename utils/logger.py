@@ -15,7 +15,10 @@ try:
 except ImportError:
     SummaryWriter = None
     TENSORBOARD_AVAILABLE = False
-    logging.warning("TensorBoard not installed. Install with: pip install tensorboard")
+    logging.warning(
+        "TensorBoard not installed. "
+        "Install with: pip install tensorboard"
+        )
 
 _logger = None
 _run_dir = None
@@ -55,7 +58,8 @@ def close_tensorboard_writer():
         _writer = None
 
 
-def setup_logging(config, run_name=None, config_path='config.json', run_dir=None):
+def setup_logging(config, run_name=None,
+                  config_path='config.json', run_dir=None):
     """Configure logging and copy ``config.json`` into the run directory.
 
     Args:
@@ -94,7 +98,8 @@ def setup_logging(config, run_name=None, config_path='config.json', run_dir=None
         os.makedirs(run_dir, exist_ok=True)
         try:
             if os.path.exists(config_path):
-                shutil.copy2(config_path, os.path.join(run_dir, 'config.json'))
+                shutil.copy2(config_path,
+                             os.path.join(run_dir, 'config.json'))
         except Exception as e:
             logging.warning(f"Failed to copy config: {e}")
     else:
@@ -116,14 +121,17 @@ def setup_logging(config, run_name=None, config_path='config.json', run_dir=None
     _logger = logging.getLogger('Severstal')
     _run_dir = run_dir
 
-    _logger.info(f"=== New run: {run_name if run_name else os.path.basename(run_dir)} ===")
+    _logger.info(f"=== New run: "
+                 f"{(run_name if run_name 
+                     else os.path.basename(run_dir))} ===")
     _logger.info(f"Configuration: {vars(config)}")
     _logger.info(f"Log directory: {run_dir}")
     return run_dir, _logger
 
 
-def save_checkpoint(run_dir, model, optimizer, scheduler, epoch, best_val_acc,
-                    best_val_f1, history, config, extra=None):
+def save_checkpoint(run_dir, model, optimizer, scheduler,
+                    epoch, best_val_acc, best_val_f1,
+                    history, config, extra=None):
     """Save a training checkpoint.
 
     Args:
@@ -149,7 +157,8 @@ def save_checkpoint(run_dir, model, optimizer, scheduler, epoch, best_val_acc,
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
+        'scheduler_state_dict': (scheduler.state_dict() if scheduler 
+                                 else None),
         'best_val_acc': best_val_acc,
         'best_val_f1': best_val_f1,
         'history': history,
@@ -184,7 +193,8 @@ def load_checkpoint(run_dir, model, optimizer, scheduler):
     checkpoint_path = os.path.join(run_dir, 'checkpoint_last.pth')
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
-    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+    checkpoint = torch.load(checkpoint_path, map_location='cpu',
+                            weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     if scheduler and checkpoint.get('scheduler_state_dict') is not None:
@@ -197,7 +207,8 @@ def load_checkpoint(run_dir, model, optimizer, scheduler):
         'val_loss': [], 'val_acc': [], 'val_f1': [],
     })
     logger = get_logger()
-    logger.info(f"Checkpoint loaded from {checkpoint_path}, resuming from epoch {epoch+1}")
+    logger.info(f"Checkpoint loaded from {checkpoint_path}, "
+                f"resuming from epoch {epoch+1}")
     return epoch + 1, best_val_acc, best_val_f1, history, checkpoint
 
 
@@ -210,7 +221,8 @@ def _suppress_noisy_libs():
     noisy_libs = [
         'qiskit', 'qiskit_aer', 'qiskit_ibm_runtime', 'qiskit.primitives',
         'matplotlib', 'PIL', 'torch', 'numpy',
-        'urllib3', 'requests', 'asyncio', 'tensorflow', 'qiskit_machine_learning'
+        'urllib3', 'requests', 'asyncio',
+        'tensorflow', 'qiskit_machine_learning'
     ]
     for lib in noisy_libs:
         logging.getLogger(lib).setLevel(logging.WARNING)
@@ -229,8 +241,10 @@ def get_logger():
     """
     global _logger
     if _logger is None:
-        logging.basicConfig(level=logging.INFO,
-                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
         _suppress_noisy_libs()
         _logger = logging.getLogger('Severstal')
     return _logger
@@ -260,9 +274,11 @@ def get_completed_epochs(run_dir):
     if os.path.exists(checkpoint_path):
         try:
             try:
-                checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
+                checkpoint = torch.load(checkpoint_path, map_location='cpu',
+                                        weights_only=True)
             except Exception:
-                checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+                checkpoint = torch.load(checkpoint_path, map_location='cpu',
+                                        weights_only=False)
             epoch = checkpoint.get('epoch', -1)
             if epoch >= 0:
                 return epoch + 1
@@ -321,10 +337,16 @@ def clean_log_folders(log_root, min_epochs=1, dry_run=False):
         epochs = get_completed_epochs(full_path)
         if epochs < min_epochs:
             if dry_run:
-                print(f"Будет удалено: {full_path} (эпох: {epochs} < {min_epochs})")
+                print(
+                    f"Будет удалено: {full_path} "
+                    f"(эпох: {epochs} < {min_epochs})"
+                    )
             else:
                 shutil.rmtree(full_path)
-                print(f"Удалено: {full_path} (эпох: {epochs} < {min_epochs})")
+                print(
+                    f"Удалено: {full_path} "
+                    f"(эпох: {epochs} < {min_epochs})"
+                    )
             removed += 1
         else:
             print(f"Оставлено: {full_path} (эпох: {epochs})")

@@ -6,7 +6,10 @@ import numpy as np
 import torch
 from PIL import Image
 
-from segmantation_base.inference import _resolve_config, SegmentationInference
+from segmantation_base.inference import (
+    _resolve_config,
+    SegmentationInference,
+)
 
 
 def return_segmenter(config_dict=None):
@@ -61,14 +64,17 @@ def return_segmenter(config_dict=None):
     if not config.checkpoint:
         raise ValueError(
             "No checkpoint in config. Set 'checkpoint' (or one of "
-            "'c_load_path', 'q_load_path', 'h_load_path') in config_dict or config.json"
+            "'c_load_path', 'q_load_path', 'h_load_path') "
+            "in config_dict or config.json"
         )
 
     output_type = "overlay"
     output_layout = None
     overlay_alpha = 0.58
     if isinstance(config_dict, dict):
-        output_type = str(config_dict.get("output_type", output_type)).lower()
+        output_type = str(
+            config_dict.get("output_type", output_type)
+            ).lower()
         layout_value = config_dict.get("output_layout")
         if layout_value is not None:
             output_layout = str(layout_value).lower()
@@ -99,14 +105,17 @@ def return_segmenter(config_dict=None):
         config=config,
     )
     default_threshold = float(config.threshold)
-    configured_batch_size = (config_dict.get("batch_size") if isinstance(config_dict, dict)
-                             else getattr(config_dict, "batch_size", None))
+    configured_batch_size = (
+        config_dict.get("batch_size") if isinstance(config_dict, dict)
+        else getattr(config_dict, "batch_size", None)
+        )
     batch_size = max(1, int(configured_batch_size or 32))
     model_batch_size = min(batch_size, inference._tile_batch_size)
 
     @torch.inference_mode()
     def _predict_batch(images):
-        """Reuse the V3 preprocessing and tiled predictor for image batches."""
+        """Reuse the V3 preprocessing and tiled predictor 
+        for image batches."""
         groups = {}
         for index, image in enumerate(images):
             if inference.transform_type == "resize":
@@ -119,26 +128,35 @@ def return_segmenter(config_dict=None):
             groups.setdefault(size, []).append(index)
 
         predictions = [None] * len(images)
-        crop_size = (inference.target_size if inference.transform_type == "crop"
-                     else inference._training_crop_size)
-        overlap = min(inference._tile_overlap, crop_size[0] // 2, crop_size[1] // 2)
+        crop_size = (
+            inference.target_size if inference.transform_type == "crop"
+            else inference._training_crop_size
+            )
+        overlap = min(
+            inference._tile_overlap, crop_size[0] // 2, crop_size[1] // 2
+            )
 
         for indices in groups.values():
             for start in range(0, len(indices), model_batch_size):
                 offsets = indices[start:start + model_batch_size]
                 if len(offsets) == 1:
-                    predictions[offsets[0]] = inference.predict_probabilities(images[offsets[0]])
+                    predictions[offsets[0]] = (
+                        inference.predict_probabilities(images[offsets[0]])
+                    )
                     continue
 
-                prepared = [inference.preprocess_image(images[i]) for i in offsets]
-                inputs = torch.cat([item["input_tensor"] for item in prepared], dim=0)
+                prepared = [inference.preprocess_image(images[i]) 
+                            for i in offsets]
+                inputs = torch.cat([item["input_tensor"] 
+                                    for item in prepared], dim=0)
                 with torch.autocast(
                     device_type=inference.device.type,
                     dtype=inference._amp_dtype or torch.float16,
                     enabled=inference._amp_dtype is not None,
                 ):
                     logits = inference.training_module.predict_full_logits(
-                        inference.model, inputs, crop_size=crop_size, overlap=overlap,
+                        inference.model, inputs,
+                        crop_size=crop_size, overlap=overlap,
                         tile_batch_size=inference._tile_batch_size,
                     )
                     probs = torch.sigmoid(logits.float())
@@ -149,7 +167,8 @@ def return_segmenter(config_dict=None):
                     if inference.transform_type == "resize":
                         meta = prepared[position]
                         prediction = inference.remove_padding_from_mask(
-                            prediction, meta["original_size"], meta["padding"],
+                            prediction, meta["original_size"],
+                            meta["padding"],
                             meta["scale_factor"],
                         )
                         prediction = np.clip(prediction, 0.0, 1.0)

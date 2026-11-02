@@ -25,7 +25,8 @@ def main(config_path='config.json'):
 
     if original_resume_from and os.path.exists(original_resume_from):
         run_dir = original_resume_from
-        resume_config_path = os.path.join(original_resume_from, 'config.json')
+        resume_config_path = os.path.join(original_resume_from,
+                                          'config.json')
         if os.path.exists(resume_config_path):
             resume_config = Config.from_json(resume_config_path)
             for key, value in vars(resume_config).items():
@@ -35,7 +36,9 @@ def main(config_path='config.json'):
                                             config_path=resume_config_path)
             logger.info(f"Resuming from {config.resume_from}")
         else:
-            raise FileNotFoundError(f"Config not found in resume directory: {resume_config_path}")
+            raise FileNotFoundError(
+                f"Config not found in resume directory: {resume_config_path}"
+                )
     else:
         run_dir, logger = setup_logging(config, config_path=config_path)
 
@@ -58,8 +61,10 @@ def main(config_path='config.json'):
          random_state=config.seed,
          checkpoint_dir=split_manifest_dir,
      )
-    logger.info(f"Data loaded: train={len(train_paths)}, val={len(val_paths)}, "
-                f"test={len(test_paths)}, split_fingerprint={(split_fingerprint or 'n/a')[:12]}")
+    logger.info(f"Data loaded: train={len(train_paths)}, "
+                f"val={len(val_paths)}, "
+                f"test={len(test_paths)}, "
+                f"split_fingerprint={(split_fingerprint or 'n/a')[:12]}")
 
     class_names = [None] * num_classes
     for name, idx in class_to_idx.items():
@@ -73,14 +78,19 @@ def main(config_path='config.json'):
     sys.stdout = old_stdout
     logger.info(f"Dataset stats:\n{stats_str}")
 
-    mean, std = torch.tensor(config.transform_mean), torch.tensor(config.transform_std)
+    mean = torch.tensor(config.transform_mean)
+    std = torch.tensor(config.transform_std)
     noise_config = getattr(config, 'noise_config', None)
-    data_transform = get_transforms(config.in_height, config.in_width, mean, std,
+    data_transform = get_transforms(config.in_height, config.in_width,
+                                    mean, std,
                                     noise_config=noise_config)
 
-    train_dataset = SeverstalDataset(train_paths, train_labels, data_transform['train'])
-    val_dataset = SeverstalDataset(val_paths, val_labels, data_transform['val'])
-    test_dataset = SeverstalDataset(test_paths, test_labels, data_transform['test'])
+    train_dataset = SeverstalDataset(train_paths, train_labels,
+                                     data_transform['train'])
+    val_dataset = SeverstalDataset(val_paths, val_labels,
+                                   data_transform['val'])
+    test_dataset = SeverstalDataset(test_paths, test_labels,
+                                    data_transform['test'])
 
     num_workers = getattr(config, 'num_workers', 4)
     train_rng = torch.Generator().manual_seed(config.seed)
@@ -91,7 +101,8 @@ def main(config_path='config.json'):
     common_kwargs = dict(
         num_workers=num_workers,
         worker_init_fn=seed_worker,
-        pin_memory=(config.device.type == 'cuda') if isinstance(config.device, torch.device)
+        pin_memory=(config.device.type == 'cuda')
+                    if isinstance(config.device, torch.device)
                     else (str(config.device).startswith('cuda')),
         persistent_workers=num_workers > 0,
     )
@@ -114,25 +125,36 @@ def main(config_path='config.json'):
         **common_kwargs,
     )
 
-    logger.info(f"Creating model: {config.model_name} (mode: {config.model_mode})")
+    logger.info(f"Creating model: {config.model_name} "
+                f"(mode: {config.model_mode})")
     model, model_info = create_model(config, num_classes,
                                      (config.in_height, config.in_width))
     model = model.to(config.device)
-    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+    logger.info(f"Trainable parameters: {(
+        sum(p.numel() for p in model.parameters()if p.requires_grad)
+        )}")
 
     if config.C_load_params and config.Q_load_params:
         if not os.path.exists(config.h_load_path):
-            raise FileNotFoundError(f"Full model weights not found: {config.h_load_path}")
+            raise FileNotFoundError(f"Full model weights not found: "
+                                    f"{config.h_load_path}")
         try:
-            state_dict = torch.load(config.h_load_path, map_location=config.device, weights_only=True)
+            state_dict = torch.load(config.h_load_path,
+                                    map_location=config.device,
+                                    weights_only=True)
         except:
-            state_dict = (torch.load(config.h_load_path, map_location=config.device, weights_only=False))['model_state_dict']
+            state_dict = (torch.load(config.h_load_path,
+                                     map_location=config.device, 
+                                     weights_only=False))['model_state_dict']
         model.load_state_dict(state_dict, strict=True)
         logger.info(f"Loaded full model from {config.h_load_path}")
     elif config.C_load_params:
         if not os.path.exists(config.c_load_path):
-            raise FileNotFoundError(f"Classical weights not found: {config.c_load_path}")
-        state_dict = torch.load(config.c_load_path, map_location=config.device)
+            raise FileNotFoundError(
+                f"Classical weights not found: {config.c_load_path}"
+                )
+        state_dict = torch.load(config.c_load_path,
+                                map_location=config.device)
         prefixes = model_info.get('classical_prefix', [])
         if not prefixes:
             model.load_state_dict(state_dict, strict=False)
@@ -141,8 +163,11 @@ def main(config_path='config.json'):
         logger.info(f"Loaded classical part from {config.c_load_path}")
     elif config.Q_load_params:
         if not os.path.exists(config.q_load_path):
-            raise FileNotFoundError(f"Quantum weights not found: {config.q_load_path}")
-        state_dict = torch.load(config.q_load_path, map_location=config.device)
+            raise FileNotFoundError(
+                f"Quantum weights not found: {config.q_load_path}"
+                )
+        state_dict = torch.load(config.q_load_path,
+                                map_location=config.device)
         prefixes = model_info.get('quantum_prefix', [])
         if not prefixes:
             model.load_state_dict(state_dict, strict=False)
@@ -159,19 +184,26 @@ def main(config_path='config.json'):
             param.requires_grad = False
         logger.info("Quantum part frozen")
 
-    model_summary = str(summary(model, input_size=(1, 1, config.in_height, config.in_width),
+    model_summary = str(summary(model,
+                                input_size=(
+                                    1, 1,config.in_height, config.in_width
+                                    ),
                                 verbose=0, device=config.device))
     logger.info(f"Model summary:\n{model_summary}")
 
-    if hasattr(config, 'class_weights') and len(config.class_weights) == num_classes:
+    if (hasattr(config, 'class_weights')
+        and len(config.class_weights) == num_classes):
         class_weights = torch.tensor(config.class_weights)
     else:
         class_weights = torch.ones(num_classes)
-        logger.warning("Class weights not provided or mismatch – using equal weights.")
+        logger.warning("Class weights not provided or mismatch "
+                       "using equal weights.")
     loss_fn = nn.BCELoss(weight=class_weights.to(config.device))
     optimizer = torch.optim.Adam(model.parameters(), lr=config.initial_lr,
                                  weight_decay=config.w_decay)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=8, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer, step_size=8, gamma=0.5
+        )
 
     if hasattr(model, 'device'):
         device = model.device
@@ -182,9 +214,12 @@ def main(config_path='config.json'):
     use_amp = getattr(config, 'use_amp', True) and device.type == 'cuda'
     amp_dtype = None
     if use_amp:
-        amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-    scaler = torch.amp.GradScaler('cuda', enabled=(amp_dtype == torch.float16))
-    logger.info(f"AMP: use={use_amp}, dtype={amp_dtype}, scaler_enabled={scaler.is_enabled()}")
+        amp_dtype = (torch.bfloat16 if torch.cuda.is_bf16_supported()
+                     else torch.float16)
+    scaler = torch.amp.GradScaler('cuda', 
+                                  enabled=(amp_dtype == torch.float16))
+    logger.info(f"AMP: use={use_amp}, dtype={amp_dtype}, "
+                f"scaler_enabled={scaler.is_enabled()}")
 
     start_epoch = 0
     best_val_acc, best_val_f1 = 0.0, 0.0
@@ -193,27 +228,42 @@ def main(config_path='config.json'):
 
     if config.resume_from:
         try:
-            start_epoch, best_val_acc, best_val_f1, history, ckpt = load_checkpoint(
-                run_dir, model, optimizer, scheduler
+            (
+                start_epoch,
+                best_val_acc,
+                best_val_f1,
+                history,
+                ckpt,
+            ) = load_checkpoint(
+                run_dir,
+                model,
+                optimizer,
+                scheduler,
             )
             model = model.to(config.device)
 
             saved_fp = ckpt.get('split_fingerprint')
-            if saved_fp and split_fingerprint and saved_fp != split_fingerprint:
+            if (saved_fp and split_fingerprint
+                and saved_fp != split_fingerprint):
                 raise RuntimeError(
-                    f"Checkpoint split_fingerprint={saved_fp[:12]} does not match "
-                    f"current split={split_fingerprint[:12]}. Refusing to resume."
+                    f"Checkpoint split_fingerprint="
+                    f"{saved_fp[:12]} does not match "
+                    f"current split={split_fingerprint[:12]}. "
+                    "Refusing to resume."
                 )
             saved_amp = ckpt.get('amp_dtype')
             if saved_amp is not None and saved_amp != amp_dtype:
-                logger.warning(f"Checkpoint amp_dtype={saved_amp}, current amp_dtype={amp_dtype}.")
+                logger.warning(f"Checkpoint amp_dtype={saved_amp}, "
+                               f"current amp_dtype={amp_dtype}.")
 
             if restore_rng_state(ckpt.get('rng_state'), train_rng, device):
                 logger.info("RNG state restored from checkpoint")
             else:
-                logger.warning("No RNG state in checkpoint; exact replay unavailable.")
+                logger.warning("No RNG state in checkpoint; "
+                               "exact replay unavailable.")
         except FileNotFoundError as e:
-            logger.warning(f"Checkpoint not found: {e}. Starting from scratch.")
+            logger.warning(f"Checkpoint not found: {e}."
+                           "Starting from scratch.")
             start_epoch = 0
 
     model_dir = os.path.join(run_dir, 'models') if run_dir else '.'
@@ -221,99 +271,126 @@ def main(config_path='config.json'):
     best_acc_path = os.path.join(model_dir, 'best_acc_model.pth')
     best_f1_path = os.path.join(model_dir, 'best_f1_model.pth')
 
-    logger.info(f"Start train on {device}")
-    for epoch in range(start_epoch, config.epochs):
-        start_time = time.time()
+    if config.C_train_flag or config.Q_train_flag:
+        logger.info(f"Start train on {device}")
+        for epoch in range(start_epoch, config.epochs):
+            start_time = time.time()
 
-        train_loss, train_acc, train_prec, train_rec, train_f1, \
-            train_tp, train_fp, train_fn = train_one_epoch(
-                model, trainloader, loss_fn, optimizer, device, num_classes,
-                config.threshold, config.eps,
-                scaler=scaler, amp_dtype=amp_dtype,
+            train_loss, train_acc, train_prec, train_rec, train_f1, \
+                train_tp, train_fp, train_fn = train_one_epoch(
+                    model, trainloader, loss_fn, optimizer, device, num_classes,
+                    config.threshold, config.eps,
+                    scaler=scaler, amp_dtype=amp_dtype,
+                )
+
+            val_loss, val_acc, val_prec, val_rec, val_f1, \
+                val_tp, val_fp, val_fn = evaluate(
+                    model, validloader, loss_fn, device, num_classes,
+                    config.threshold, config.eps,
+                    amp_dtype=amp_dtype,
+                )
+            scheduler.step()
+
+            epoch_time = time.time() - start_time
+
+            history['train_loss'].append(train_loss)
+            history['train_acc'].append(train_acc)
+            history['train_f1'].append(train_f1.mean().item())
+            history['val_loss'].append(val_loss)
+            history['val_acc'].append(val_acc)
+            history['val_f1'].append(val_f1.mean().item())
+
+            logger.info(
+                f"Epoch {epoch+1}/{config.epochs} [{epoch_time:.1f}s] "
+                f"Train Loss={train_loss:.4f} Acc={train_acc:.4f} "
+                f"MacroF1={train_f1.mean():.4f} | "
+                f"Val Loss={val_loss:.4f} Acc={val_acc:.4f} "
+                f"MacroF1={val_f1.mean():.4f}"
             )
 
-        val_loss, val_acc, val_prec, val_rec, val_f1, \
-            val_tp, val_fp, val_fn = evaluate(
-                model, validloader, loss_fn, device, num_classes,
-                config.threshold, config.eps,
-                amp_dtype=amp_dtype,
+            eps = config.eps
+            train_prec_cls = train_tp / (train_tp + train_fp + eps)
+            train_rec_cls = train_tp / (train_tp + train_fn + eps)
+            train_f1_cls = (
+                2 * train_prec_cls * train_rec_cls
+                / (train_prec_cls + train_rec_cls + eps)
             )
-        scheduler.step()
+            val_prec_cls = val_tp / (val_tp + val_fp + eps)
+            val_rec_cls = val_tp / (val_tp + val_fn + eps)
+            val_f1_cls = (
+                2 * val_prec_cls * val_rec_cls
+                / (val_prec_cls + val_rec_cls + eps)
+            )
 
-        epoch_time = time.time() - start_time
+            train_cls_str = ", ".join(
+                [f"{class_names[i]}:P={train_prec_cls[i]:.3f} "
+                    f"R={train_rec_cls[i]:.3f} F1={train_f1_cls[i]:.3f}"
+                                    for i in range(num_classes)])
+            val_cls_str = ", ".join(
+                [f"{class_names[i]}:P={val_prec_cls[i]:.3f} "
+                    f"R={val_rec_cls[i]:.3f} F1={val_f1_cls[i]:.3f}"
+                                    for i in range(num_classes)])
+            logger.info(f"Train per-class: {train_cls_str}")
+            logger.info(f"Val   per-class: {val_cls_str}")
 
-        history['train_loss'].append(train_loss)
-        history['train_acc'].append(train_acc)
-        history['train_f1'].append(train_f1.mean().item())
-        history['val_loss'].append(val_loss)
-        history['val_acc'].append(val_acc)
-        history['val_f1'].append(val_f1.mean().item())
+            rng_state = capture_rng_state(train_rng, device)
+            save_checkpoint(
+                run_dir, model, optimizer,
+                scheduler, epoch,
+                best_val_acc, best_val_f1,
+                history, config,
+                extra={
+                    'rng_state': rng_state,
+                    'split_fingerprint': split_fingerprint,
+                    'amp_dtype': amp_dtype,
+                },
+            )
 
-        logger.info(
-            f"Epoch {epoch+1}/{config.epochs} [{epoch_time:.1f}s] "
-            f"Train Loss={train_loss:.4f} Acc={train_acc:.4f} MacroF1={train_f1.mean():.4f} | "
-            f"Val Loss={val_loss:.4f} Acc={val_acc:.4f} MacroF1={val_f1.mean():.4f}"
-        )
+            if writer is not None:
+                writer.add_scalar('Loss/train', train_loss, epoch)
+                writer.add_scalar('Loss/val', val_loss, epoch)
+                writer.add_scalar('Accuracy/train', train_acc, epoch)
+                writer.add_scalar('Accuracy/val', val_acc, epoch)
+                writer.add_scalar('F1_macro/train', train_f1.mean().item(),
+                                epoch)
+                writer.add_scalar('F1_macro/val', val_f1.mean().item(), epoch)
+                for i, cls in enumerate(class_names):
+                    writer.add_scalar(
+                        f'F1_per_class/{cls}/train', train_f1_cls[i].item(),
+                        epoch
+                        )
+                    writer.add_scalar(
+                        f'F1_per_class/{cls}/val', val_f1_cls[i].item(),
+                        epoch
+                        )
 
-        eps = config.eps
-        train_prec_cls = train_tp / (train_tp + train_fp + eps)
-        train_rec_cls = train_tp / (train_tp + train_fn + eps)
-        train_f1_cls = 2 * train_prec_cls * train_rec_cls / (train_prec_cls + train_rec_cls + eps)
-        val_prec_cls = val_tp / (val_tp + val_fp + eps)
-        val_rec_cls = val_tp / (val_tp + val_fn + eps)
-        val_f1_cls = 2 * val_prec_cls * val_rec_cls / (val_prec_cls + val_rec_cls + eps)
-
-        train_cls_str = ", ".join([f"{class_names[i]}:P={train_prec_cls[i]:.3f} "
-                                   f"R={train_rec_cls[i]:.3f} F1={train_f1_cls[i]:.3f}"
-                                   for i in range(num_classes)])
-        val_cls_str = ", ".join([f"{class_names[i]}:P={val_prec_cls[i]:.3f} "
-                                 f"R={val_rec_cls[i]:.3f} F1={val_f1_cls[i]:.3f}"
-                                 for i in range(num_classes)])
-        logger.info(f"Train per-class: {train_cls_str}")
-        logger.info(f"Val   per-class: {val_cls_str}")
-
-        rng_state = capture_rng_state(train_rng, device)
-        save_checkpoint(
-            run_dir, model, optimizer, scheduler, epoch, best_val_acc, best_val_f1,
-            history, config,
-            extra={
-                'rng_state': rng_state,
-                'split_fingerprint': split_fingerprint,
-                'amp_dtype': amp_dtype,
-            },
-        )
-
-        if writer is not None:
-            writer.add_scalar('Loss/train', train_loss, epoch)
-            writer.add_scalar('Loss/val', val_loss, epoch)
-            writer.add_scalar('Accuracy/train', train_acc, epoch)
-            writer.add_scalar('Accuracy/val', val_acc, epoch)
-            writer.add_scalar('F1_macro/train', train_f1.mean().item(), epoch)
-            writer.add_scalar('F1_macro/val', val_f1.mean().item(), epoch)
-            for i, cls in enumerate(class_names):
-                writer.add_scalar(f'F1_per_class/{cls}/train', train_f1_cls[i].item(), epoch)
-                writer.add_scalar(f'F1_per_class/{cls}/val', val_f1_cls[i].item(), epoch)
-
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            torch.save(model.state_dict(), best_acc_path)
-            logger.info(f"New best accuracy: {val_acc:.4f} (saved to {best_acc_path})")
-        val_macro_f1 = val_f1.mean().item()
-        if val_macro_f1 > best_val_f1:
-            best_val_f1 = val_macro_f1
-            torch.save(model.state_dict(), best_f1_path)
-            logger.info(f"New best F1: {best_val_f1:.4f} (saved to {best_f1_path})")
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                torch.save(model.state_dict(), best_acc_path)
+                logger.info(f"New best accuracy: {val_acc:.4f} "
+                            f"(saved to {best_acc_path})")
+            val_macro_f1 = val_f1.mean().item()
+            if val_macro_f1 > best_val_f1:
+                best_val_f1 = val_macro_f1
+                torch.save(model.state_dict(), best_f1_path)
+                logger.info(f"New best F1: {best_val_f1:.4f} "
+                            f"(saved to {best_f1_path})")
 
     use_frozen = getattr(config, "freeze_quantum", True)
     if use_frozen:
-        model_frozen = freeze_for_inference(model, info=model_info, transpile=True)
+        model_frozen = freeze_for_inference(
+            model, info=model_info, transpile=True
+            )
     else:
         model_frozen = model
 
     logger.info("Loading best model (by accuracy) for final evaluation")
-    model.load_state_dict(torch.load(best_acc_path, map_location=config.device))
+    if config.C_train_flag or config.Q_train_flag:
+        model.load_state_dict(torch.load(best_acc_path,
+                                        map_location=config.device))
     if use_frozen:
-        model_frozen = freeze_for_inference(model, info=model_info, transpile=True)
+        model_frozen = freeze_for_inference(model,
+                                            info=model_info, transpile=True)
 
     logger.info("Evaluating on validation set (best acc model)")
     val_loss, val_acc, val_prec, val_rec, val_f1, _, _, _ = evaluate(
@@ -338,39 +415,75 @@ def main(config_path='config.json'):
                     f"Recall={test_rec[i]:.4f}, F1={test_f1[i]:.4f}")
 
     logger.info("Loading best model (by F1) for final evaluation")
-    model.load_state_dict(torch.load(best_f1_path, map_location=config.device))
+    if config.C_train_flag or config.Q_train_flag:
+        model.load_state_dict(torch.load(best_f1_path,
+                                        map_location=config.device))
     if use_frozen:
-        model_frozen = freeze_for_inference(model, info=model_info, transpile=True)
+        model_frozen = freeze_for_inference(model,
+                                            info=model_info, transpile=True)
 
     logger.info("Evaluating on validation set (best F1 model)")
-    val_loss_f1, val_acc_f1, val_prec_f1, val_rec_f1, val_f1_metrics, _, _, _ = evaluate(
-        model_frozen, validloader, loss_fn, device, num_classes,
-        config.threshold, config.eps, amp_dtype=amp_dtype,
-    )
+    (
+		val_loss_f1,
+		val_acc_f1,
+		val_prec_f1,
+		val_rec_f1,
+		val_f1_metrics,
+		_,
+		_,
+		_,
+	) = evaluate(
+		model_frozen,
+		validloader,
+		loss_fn,
+		device,
+		num_classes,
+		config.threshold,
+		config.eps,
+		amp_dtype=amp_dtype,
+	)
     logger.info(f"Val Loss (F1 model): {val_loss_f1:.4f}, "
                 f"Val Acc (F1 model): {val_acc_f1:.4f}, "
                 f"Val MacroF1 (F1 model)={val_f1_metrics.mean():.4f}")
     for i, cls in enumerate(class_names):
         logger.info(f"  Class {cls}: Precision={val_prec_f1[i]:.4f}, "
-                    f"Recall={val_rec_f1[i]:.4f}, F1={val_f1_metrics[i]:.4f}")
+                    f"Recall={val_rec_f1[i]:.4f}, "
+                    f"F1={val_f1_metrics[i]:.4f}")
 
     logger.info("Evaluating on test set (best F1 model)")
-    test_loss_f1, test_acc_f1, test_prec_f1, test_rec_f1, test_f1_metrics, _, _, _ = evaluate(
-        model_frozen, testloader, loss_fn, device, num_classes,
-        config.threshold, config.eps, amp_dtype=amp_dtype,
-    )
+    (
+		test_loss_f1,
+		test_acc_f1,
+		test_prec_f1,
+		test_rec_f1,
+		test_f1_metrics,
+		_,
+		_,
+		_,
+	) = evaluate(
+		model_frozen,
+		testloader,
+		loss_fn,
+		device,
+		num_classes,
+		config.threshold,
+		config.eps,
+		amp_dtype=amp_dtype,
+	)
     logger.info(f"Test Loss (F1 model): {test_loss_f1:.4f}, "
                 f"Test Acc (F1 model): {test_acc_f1:.4f}, "
                 f"Test MacroF1 (F1 model)={test_f1_metrics.mean():.4f}")
     for i, cls in enumerate(class_names):
         logger.info(f"  Class {cls}: Precision={test_prec_f1[i]:.4f}, "
-                    f"Recall={test_rec_f1[i]:.4f}, F1={test_f1_metrics[i]:.4f}")
+                    f"Recall={test_rec_f1[i]:.4f}, "
+                    f"F1={test_f1_metrics[i]:.4f}")
 
     if config.save_visualizations and run_dir:
         vis_dir = os.path.join(run_dir, 'visualizations')
         os.makedirs(vis_dir, exist_ok=True)
         save_training_plots(history, save_dir=vis_dir)
-        logger.info(f"Training plots saved to {vis_dir}/training_metrics.png")
+        logger.info(f"Training plots saved to "
+                    f"{vis_dir}/training_metrics.png")
 
     close_tensorboard_writer()
     logger.info("=== Run finished ===")

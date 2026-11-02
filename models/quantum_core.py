@@ -71,7 +71,9 @@ class NoisySamplerV2(BaseSamplerV2):
         """
         cache_key = id(circuit)
         if cache_key not in self._transpiled_cache:
-            transpiled = self._pm.run(circuit) if self._pm is not None else circuit
+            transpiled = (
+                self._pm.run(circuit) if self._pm is not None else circuit
+            )
             self._transpiled_cache[cache_key] = transpiled
         return self._transpiled_cache[cache_key]
 
@@ -117,7 +119,8 @@ class NoisySamplerV2(BaseSamplerV2):
                     param_batch = param_batch.reshape(1, -1)
                 elif param_batch.ndim != 2:
                     raise ValueError(
-                        f"parameter_values has invalid shape {param_batch.ndim}"
+                        "parameter_values has invalid shape "
+                        f"{param_batch.ndim}"
                     )
 
             if self._transpile_before_bind:
@@ -131,14 +134,22 @@ class NoisySamplerV2(BaseSamplerV2):
                 if self._transpile_before_bind:
                     base_circ = transpiled_circuit
                     if param_batch.size > 0:
-                        param_dict = dict(zip(circuit.parameters, params_row))
-                        bound_circuit = base_circ.assign_parameters(param_dict)
+                        param_dict = dict(
+                            zip(circuit.parameters, params_row)
+                            )
+                        bound_circuit = (
+                            base_circ.assign_parameters(param_dict)
+                        )
                     else:
                         bound_circuit = base_circ
                 else:
                     if param_batch.size > 0:
-                        param_dict = dict(zip(circuit.parameters, params_row))
-                        bound_circuit = circuit.assign_parameters(param_dict)
+                        param_dict = dict(
+                            zip(circuit.parameters, params_row)
+                            )
+                        bound_circuit = (
+                            circuit.assign_parameters(param_dict)
+                        )
                     else:
                         bound_circuit = circuit
 
@@ -223,15 +234,17 @@ def create_qnn(feature_map, ansatz, shots, backend_type='noisy_simulator',
     qc.compose(ansatz.decompose(), inplace=True)
 
     if backend_type == 'aer_simulator':
-        backend = AerSimulator(method="statevector", seed_simulator=42)
+        backend = AerSimulator(method="statevector")
         sampler = SamplerV2(mode=backend, options={"default_shots": shots})
-        pm = generate_preset_pass_manager(optimization_level=3, backend=backend)
+        pm = generate_preset_pass_manager(
+            optimization_level=3, backend=backend
+            )
         qc_isa = pm.run(qc)
 
     elif backend_type == 'noisy_simulator':
         if backend is _UNSET:
             backend = FakeSherbrooke()
-        backend = backend if backend is not None else AerSimulator() # seed_simulator=42
+        backend = backend if backend is not None else AerSimulator()
         sampler = NoisySamplerV2(
             backend,
             shots=shots,
@@ -295,7 +308,8 @@ class Q_Net(nn.Module):
             x = self.input_transform(x)
 
         device_type = x.device.type if isinstance(x, torch.Tensor) else 'cpu'
-        if isinstance(x, torch.Tensor) and x.dtype in (torch.float16, torch.bfloat16):
+        if isinstance(x, torch.Tensor) and x.dtype in (torch.float16,
+                                                       torch.bfloat16):
             x = x.float()
         with torch.autocast(device_type=device_type, enabled=False):
             x = self.qnn(x)

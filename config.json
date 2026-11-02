@@ -4,18 +4,18 @@
     "q_load_path": "__.pth",
     "h_load_path": "./best_models_weights/best_clas_model.pth",
 
-    "train_part": 0.7,
-    "val_part": 0.15,
+    "train_part": 0.5,
+    "val_part": 0.25,
     "in_height": 256,
     "in_width": 1600,
     "threshold": 0.5,
 
     "epochs": 16,
-    "initial_lr": 0.001,
+    "initial_lr": 0.002,
     "w_decay": 0.0,
     "batch_size": 32,
 
-    "shots": 512,
+    "shots": 256,
     "backend_type": "aer_simulator",
     "transpile_before": true,
     "freeze_quantum": true,
@@ -26,8 +26,8 @@
 
     "C_train_flag": true,
     "Q_train_flag": true,
-    "C_load_params": true,
-    "Q_load_params": true,
+    "C_load_params": false,
+    "Q_load_params": false,
 
     "seed": 42,
     "device": "cuda",
@@ -36,10 +36,10 @@
     "eps": 1e-7,
 
     "model_name": "effnetv0",
-    "model_mode": "quantum",
+    "model_mode": "classical",
 
     "noise_config": {
-        "gaussian_std": null,
+        "gaussian_std": 0.1,
         "salt_pepper_prob": null,
         "jpeg_quality": null,
         "brightness_range": null,

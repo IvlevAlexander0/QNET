@@ -54,7 +54,8 @@ def _as_device(device):
     Returns:
         ``torch.device`` instance.
     """
-    return device if isinstance(device, torch.device) else torch.device(device)
+    return (device if isinstance(device, torch.device)
+            else torch.device(device))
 
 
 def capture_rng_state(train_generator, device):

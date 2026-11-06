@@ -100,14 +100,16 @@ class HybridQNet(nn.Module):
             self.num_features, num_classes,
             config, reps_default=model_config['reps']
         )
-        self.q_net3 = build_quantum_layer(
-            self.num_features, num_classes,
-            config, reps_default=model_config['reps']
-        )
+        # self.q_net3 = build_quantum_layer(
+        #     self.num_features, num_classes,
+        #     config, reps_default=model_config['reps']
+        # )
+
 
         q_out_size = self.q_net1.output_shape[0]
-        self.BN_out = nn.BatchNorm1d(q_out_size * 3)
-        self.final = nn.Linear(q_out_size * 3, num_classes)
+        self.lin = nn.Linear(num_classes, num_classes)
+        #self.BN_out = nn.BatchNorm1d(q_out_size * 2 + num_classes)
+        self.final = nn.Linear(q_out_size * 2 + num_classes, num_classes)
 
     def forward(self, x):
         """Compute class logits for an input batch.
@@ -124,11 +126,12 @@ class HybridQNet(nn.Module):
 
         qout1 = self.q_net1(projected_features)
         qout2 = self.q_net2(projected_features)
-        qout3 = self.q_net3(projected_features)
+        #qout3 = self.q_net3(projected_features)
+        qout3 = self.lin(projected_features)
 
         output = torch.cat((qout1, qout2, qout3), dim=1)
-        BN_output = self.BN_out(output)
-        return self.final(BN_output)
+#       BN_output = self.BN_out(output)
+        return self.final(output)
 
 
 @register_model("mobilenetv3")
@@ -172,19 +175,20 @@ def create_resnet50_model(mode, num_classes, input_shape, config):
             list(hybrid_model.feature_extractor.parameters()) + \
             list(hybrid_model.projection.parameters()) + \
             list(hybrid_model.BN_in.parameters()) + \
-            list(hybrid_model.BN_out.parameters()) + \
+            list(hybrid_model.lin.parameters()) + \
+            #list(hybrid_model.BN_out.parameters()) + \
             list(hybrid_model.final.parameters())
         )
         quantum_params = list(hybrid_model.q_net1.parameters()) + \
-                        list(hybrid_model.q_net2.parameters()) + \
-                        list(hybrid_model.q_net3.parameters())
+                        list(hybrid_model.q_net2.parameters())# + \
+                        #list(hybrid_model.q_net3.parameters())
         info = {
             'type': 'hybrid',
             'model_name': 'mobilenetv3',
             'classical_params': classical_params,
             'quantum_params': quantum_params,
             'classical_prefix': ['feature_extractor.', 'projection.',
-                                'BN_in.', 'BN_out.', 'final.'],
+                                'BN_in.', 'final.', 'lin.'], #, 'BN_out.'
             'quantum_prefix': 'q_net.',
             'base_model': hybrid_model,
         }

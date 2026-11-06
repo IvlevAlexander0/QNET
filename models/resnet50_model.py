@@ -11,7 +11,7 @@ model_config = {"reps": 4}
 
 
 class ResNet50FeatureExtractor(nn.Module):
-    """ResNet50 backbone returning a 512-dimensional feature vector."""
+    """ResNet50 backbone returning a 2048-dimensional feature vector."""
 
     def __init__(self):
         """Initialize the backbone with pretrained ImageNet weights.
@@ -31,7 +31,7 @@ class ResNet50FeatureExtractor(nn.Module):
                 Single-channel inputs are expanded to three channels.
 
         Returns:
-            Feature tensor of shape ``(N, 512)``.
+            Feature tensor of shape ``(N, 2048)``.
         """
         if x.shape[1] == 1:
             x = x.repeat(1, 3, 1, 1)
@@ -54,7 +54,7 @@ class ResNet(nn.Module):
         """
         super().__init__()
         self.feature_extractor = ResNet50FeatureExtractor()
-        self.projection = nn.Linear(512, num_classes)
+        self.projection = nn.Linear(2048, num_classes)
 
     def forward(self, x):
         """Compute class logits for an input batch.
@@ -89,7 +89,7 @@ class HybridQNet(nn.Module):
         self.feature_extractor = ResNet50FeatureExtractor()
 
         self.num_features = getattr(config, 'num_features', num_classes)
-        self.projection = nn.Linear(512, self.num_features)
+        self.projection = nn.Linear(2048, self.num_features)
         self.BN_in = nn.BatchNorm1d(self.num_features)
 
         self.q_net1 = build_quantum_layer(

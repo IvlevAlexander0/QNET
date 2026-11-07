@@ -82,12 +82,42 @@ def _create_zz_ansatz(num_qubits, reps, entanglement):
 
     return circuit
 
+def _create_rxryrx_ansatz(num_qubits, reps, entanglement):
+    """Create an RXRYRY + CNOT variational ansatz.
+
+    Args:
+        num_qubits: Number of qubits in the circuit.
+        reps: Number of variational repetitions.
+        entanglement: Entanglement topology, one of ``'linear'``,
+            ``'circular'`` or ``'full'``.
+
+    Returns:
+        A ``QuantumCircuit`` implementing the RXRYRY + CNOT ansatz.
+    """
+    circuit = QuantumCircuit(num_qubits)
+    pairs = _entanglement_pairs(num_qubits, entanglement)
+
+    for rep in range(reps):
+        pv_rx = ParameterVector(f'rx_{rep}', num_qubits)
+        pv_ry = ParameterVector(f'ry_{rep}', num_qubits)
+        pv_rx2 = ParameterVector(f'rx2_{rep}', num_qubits)
+        for i in range(num_qubits):
+            circuit.rx(pv_rx[i], i)
+            circuit.ry(pv_ry[i], i)
+            circuit.rx(pv_rx2[i], i)
+
+        if pairs and (rep != reps - 1):
+            for _, (i, j) in enumerate(pairs):
+                circuit.cx(i, j)
+
+    return circuit
+
 
 def create_ansatz(ansatz_type, num_qubits, reps, entanglement='circular'):
     """Create a parameterized variational ansatz circuit.
 
     Args:
-        ansatz_type: Ansatz family, either ``'ry'`` or ``'zz'``.
+        ansatz_type: Ansatz family, either ``'ry'``, ``'zz'`` or ``'rxryrx'``.
         num_qubits: Number of qubits in the circuit.
         reps: Number of variational repetitions.
         entanglement: Entanglement topology, one of ``'linear'``,
@@ -104,5 +134,7 @@ def create_ansatz(ansatz_type, num_qubits, reps, entanglement='circular'):
         return _create_ry_ansatz(num_qubits, reps, entanglement)
     elif ansatz_type == 'zz':
         return _create_zz_ansatz(num_qubits, reps, entanglement)
+    elif ansatz_type == 'rxryrx':
+        return _create_rxryrx_ansatz(num_qubits, reps, entanglement)
     else:
         raise ValueError(f"Unknown ansatz type: {ansatz_type}")

@@ -20,7 +20,7 @@
     "transpile_before": true,
     "freeze_quantum": true,
     "encoding_type": "angle",
-    "ansatz_type": "ry",
+    "ansatz_type": "rxryrx",
     "entanglement": "circular",
     "reps": 4,
 
@@ -35,8 +35,8 @@
     "det": false,
     "eps": 1e-7,
 
-    "model_name": "mobilenetv3",
-    "model_mode": "classical",
+    "model_name": "effnetv0",
+    "model_mode": "quantum2",
 
     "noise_config": {
         "gaussian_std": null,

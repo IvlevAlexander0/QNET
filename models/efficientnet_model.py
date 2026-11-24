@@ -55,7 +55,7 @@ class EfficientNetClassical(nn.Module):
         """
         super().__init__()
         self.feature_extractor = EfficientNetFeatureExtractor()
-        self.projection = nn.Linear(1280, num_classes)
+        self.classical = nn.Linear(1280, num_classes)
         self.feature_BN = nn.BatchNorm1d(1280)
 
     def forward(self, x):
@@ -68,7 +68,7 @@ class EfficientNetClassical(nn.Module):
             Logit tensor of shape ``(N, num_classes)``.
         """
         features = self.feature_extractor(x)
-        return self.projection(features)
+        return self.classical(features)
 
 
 class EfficientNetClassical2(nn.Module):
@@ -413,9 +413,9 @@ def create_efficientnet_model(mode, num_classes, input_shape, config):
             'classical_params': classical_params,
             'quantum_params': quantum_params,
             'classical_prefix': [
-                'feature_extractor.', 'classical.', 'q_scale', 'projection.', 'BN_in.'
+                '0.feature_extractor.', '0.classical.', '0.q_scale', '0.projection.', '0.BN_in.'
             ],
-            'quantum_prefix': 'q_net.',
+            'quantum_prefix': '0.q_net.',
             'base_model': hybrid_model,
         }
         return model, info

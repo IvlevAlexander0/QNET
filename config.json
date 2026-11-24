@@ -1,8 +1,8 @@
 {
     "dataset_path": "../Dataset_k",
-    "c_load_path": "./best_models_weights/effnetv0_c_18/models/best_f1_model.pth",
+    "c_load_path": "./best_models_weights/effnetv0_c_18_0/models/best_f1_model.pth",
     "q_load_path": "__.pth",
-    "h_load_path": "./best_models_weights/mobilenetv3_q_res_base/models/best_f1_model.pth",
+    "h_load_path": "./fin_results2/2. Базовые кванты/effnetb0_q_res_0_n3/models/best_f1_model.pth",
 
     "train_part": 0.5,
     "val_part": 0.25,
@@ -26,7 +26,7 @@
 
     "C_train_flag": true,
     "Q_train_flag": true,
-    "C_load_params": false,
+    "C_load_params": true,
     "Q_load_params": false,
 
     "seed": 42,

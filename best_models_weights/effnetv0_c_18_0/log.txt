@@ -1,0 +1,176 @@
+2026-11-24 16:00:28,867 - Severstal - INFO - === New run: 20261124_160028 ===
+2026-11-24 16:00:28,867 - Severstal - INFO - Configuration: {'dataset_path': '../Dataset_k', 'c_load_path': './best_models_weights/effnetv0_c_18/models/best_f1_model.pth', 'q_load_path': '__.pth', 'h_load_path': './best_models_weights/mobilenetv3_q_res_base/models/best_f1_model.pth', 'train_part': 0.5, 'val_part': 0.25, 'in_height': 256, 'in_width': 800, 'threshold': 0.5, 'epochs': 18, 'initial_lr': 0.002, 'w_decay': 0.0, 'batch_size': 32, 'shots': 256, 'backend_type': 'aer_simulator', 'transpile_before': True, 'freeze_quantum': True, 'encoding_type': 'angle', 'ansatz_type': 'ry', 'entanglement': 'circular', 'reps': 4, 'C_train_flag': True, 'Q_train_flag': True, 'C_load_params': False, 'Q_load_params': False, 'seed': 0, 'device': device(type='cuda'), 'use_amp': True, 'det': False, 'eps': 1e-07, 'model_name': 'effnetv0', 'model_mode': 'classical', 'noise_config': {'gaussian_std': None, 'salt_pepper_prob': None, 'jpeg_quality': None, 'brightness_range': None, 'contrast_range': None, 'speckle_std': None, 'poisson_scale': None, 'motion_degree': None}, 'num_classes': 4, 'class_weights': [0.17, 0.6, 0.03, 0.2], 'transform_mean': 0.343, 'transform_std': 0.134, 'log_dir': './logs', 'enable_logging': True, 'save_visualizations': True, 'enable_tensorboard': True, 'resume_from': None, 'resume_from_': './logs/20261116_114351'}
+2026-11-24 16:00:28,868 - Severstal - INFO - Log directory: ./logs\20261124_160028
+2026-11-24 16:00:28,871 - Severstal - INFO - Loading data (stratified split + manifest)...
+2026-11-24 16:00:29,328 - Severstal - INFO - Data loaded: train=6284, val=3142, test=3142, split_fingerprint=8930e5230ea9
+2026-11-24 16:00:29,347 - Severstal - INFO - Dataset stats:
+
+==================================================
+Train set: 6284 images
+  - Multi-label images (≥2 defects): 409 (6.5%)
+  - Class distribution:
+      1: 449.0 (7.1%)
+      2: 123.0 (2.0%)
+      3: 2575.0 (41.0%)
+      4: 401.0 (6.4%)
+==================================================
+
+==================================================
+Val set: 3142 images
+  - Multi-label images (≥2 defects): 12 (0.4%)
+  - Class distribution:
+      1: 224.0 (7.1%)
+      2: 62.0 (2.0%)
+      3: 1288.0 (41.0%)
+      4: 200.0 (6.4%)
+==================================================
+
+==================================================
+Test set: 3142 images
+  - Multi-label images (≥2 defects): 6 (0.2%)
+  - Class distribution:
+      1: 224.0 (7.1%)
+      2: 62.0 (2.0%)
+      3: 1287.0 (41.0%)
+      4: 200.0 (6.4%)
+==================================================
+
+2026-11-24 16:00:29,348 - Severstal - INFO - Creating model: effnetv0 (mode: classical)
+2026-11-24 16:00:29,530 - Severstal - INFO - Trainable parameters: 4015232
+2026-11-24 16:00:29,740 - Severstal - INFO - Model summary:
+========================================================================================================================
+Layer (type:depth-idx)                                                 Output Shape              Param #
+========================================================================================================================
+Sequential                                                             [1, 4]                    --
+├─EfficientNetClassical: 1-1                                           [1, 4]                    2,560
+│    └─EfficientNetFeatureExtractor: 2-1                               [1, 1280]                 --
+│    │    └─EfficientNet: 3-1                                          [1, 1280]                 4,007,548
+│    └─Linear: 2-2                                                     [1, 4]                    5,124
+├─Sigmoid: 1-2                                                         [1, 4]                    --
+========================================================================================================================
+Total params: 4,015,232
+Trainable params: 4,015,232
+Non-trainable params: 0
+Total mult-adds (Units.GIGABYTES): 1.57
+========================================================================================================================
+Input size (MB): 0.82
+Forward/backward pass size (MB): 440.09
+Params size (MB): 16.05
+Estimated Total Size (MB): 456.96
+========================================================================================================================
+2026-11-24 16:00:29,741 - Severstal - INFO - AMP: use=True, dtype=torch.bfloat16, scaler_enabled=False
+2026-11-24 16:00:29,743 - Severstal - INFO - Start train on cuda
+2026-11-24 16:02:00,773 - Severstal - INFO - Epoch 1/18 [91.0s] Train Loss=0.0319 Acc=0.9059 MacroF1=0.4010 | Val Loss=0.0481 Acc=0.9115 MacroF1=0.3622
+2026-11-24 16:02:00,774 - Severstal - INFO - Train per-class: 1:P=0.556 R=0.178 F1=0.270, 2:P=0.071 R=0.016 F1=0.026, 3:P=0.736 R=0.647 F1=0.688, 4:P=0.687 R=0.564 F1=0.619
+2026-11-24 16:02:00,774 - Severstal - INFO - Val   per-class: 1:P=1.000 R=0.027 F1=0.052, 2:P=0.000 R=0.000 F1=0.000, 3:P=0.785 R=0.581 F1=0.668, 4:P=0.967 R=0.585 F1=0.729
+2026-11-24 16:02:00,852 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 1)
+2026-11-24 16:02:00,884 - Severstal - INFO - New best accuracy: 0.9115 (saved to ./logs\20261124_160028\models\best_acc_model.pth)
+2026-11-24 16:02:00,916 - Severstal - INFO - New best F1: 0.3622 (saved to ./logs\20261124_160028\models\best_f1_model.pth)
+2026-11-24 16:02:56,968 - Severstal - INFO - Epoch 2/18 [56.1s] Train Loss=0.0215 Acc=0.9322 MacroF1=0.5584 | Val Loss=0.0175 Acc=0.9416 MacroF1=0.6336
+2026-11-24 16:02:56,969 - Severstal - INFO - Train per-class: 1:P=0.715 R=0.363 F1=0.482, 2:P=0.688 R=0.089 F1=0.158, 3:P=0.822 R=0.732 F1=0.775, 4:P=0.856 R=0.786 F1=0.819
+2026-11-24 16:02:56,969 - Severstal - INFO - Val   per-class: 1:P=0.852 R=0.567 F1=0.681, 2:P=0.750 R=0.145 F1=0.243, 3:P=0.858 R=0.763 F1=0.808, 4:P=0.709 R=0.925 F1=0.803
+2026-11-24 16:02:57,048 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 2)
+2026-11-24 16:02:57,079 - Severstal - INFO - New best accuracy: 0.9416 (saved to ./logs\20261124_160028\models\best_acc_model.pth)
+2026-11-24 16:02:57,111 - Severstal - INFO - New best F1: 0.6336 (saved to ./logs\20261124_160028\models\best_f1_model.pth)
+2026-11-24 16:03:54,428 - Severstal - INFO - Epoch 3/18 [57.3s] Train Loss=0.0184 Acc=0.9446 MacroF1=0.6613 | Val Loss=0.0189 Acc=0.9402 MacroF1=0.5872
+2026-11-24 16:03:54,429 - Severstal - INFO - Train per-class: 1:P=0.782 R=0.510 F1=0.617, 2:P=0.580 R=0.236 F1=0.335, 3:P=0.856 R=0.783 F1=0.818, 4:P=0.909 R=0.843 F1=0.875
+2026-11-24 16:03:54,429 - Severstal - INFO - Val   per-class: 1:P=0.929 R=0.290 F1=0.442, 2:P=0.769 R=0.161 F1=0.267, 3:P=0.809 R=0.846 F1=0.827, 4:P=0.782 R=0.845 F1=0.812
+2026-11-24 16:03:54,528 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 3)
+2026-11-24 16:04:52,285 - Severstal - INFO - Epoch 4/18 [57.8s] Train Loss=0.0167 Acc=0.9480 MacroF1=0.7212 | Val Loss=0.0147 Acc=0.9581 MacroF1=0.7857
+2026-11-24 16:04:52,286 - Severstal - INFO - Train per-class: 1:P=0.796 R=0.557 F1=0.655, 2:P=0.693 R=0.423 F1=0.525, 3:P=0.859 R=0.800 F1=0.828, 4:P=0.900 R=0.853 F1=0.876
+2026-11-24 16:04:52,286 - Severstal - INFO - Val   per-class: 1:P=0.772 R=0.652 F1=0.707, 2:P=0.826 R=0.613 F1=0.704, 3:P=0.848 R=0.914 F1=0.880, 4:P=0.987 R=0.750 F1=0.852
+2026-11-24 16:04:52,382 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 4)
+2026-11-24 16:04:52,424 - Severstal - INFO - New best accuracy: 0.9581 (saved to ./logs\20261124_160028\models\best_acc_model.pth)
+2026-11-24 16:04:52,460 - Severstal - INFO - New best F1: 0.7857 (saved to ./logs\20261124_160028\models\best_f1_model.pth)
+2026-11-24 16:05:50,476 - Severstal - INFO - Epoch 5/18 [58.0s] Train Loss=0.0143 Acc=0.9574 MacroF1=0.7633 | Val Loss=0.0144 Acc=0.9512 MacroF1=0.8001
+2026-11-24 16:05:50,478 - Severstal - INFO - Train per-class: 1:P=0.804 R=0.604 F1=0.690, 2:P=0.681 R=0.504 F1=0.579, 3:P=0.880 R=0.855 F1=0.868, 4:P=0.944 R=0.890 F1=0.917
+2026-11-24 16:05:50,478 - Severstal - INFO - Val   per-class: 1:P=0.662 R=0.848 F1=0.744, 2:P=0.682 R=0.726 F1=0.703, 3:P=0.840 R=0.844 F1=0.842, 4:P=0.894 R=0.930 F1=0.912
+2026-11-24 16:05:50,571 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 5)
+2026-11-24 16:05:50,606 - Severstal - INFO - New best F1: 0.8001 (saved to ./logs\20261124_160028\models\best_f1_model.pth)
+2026-11-24 16:06:48,591 - Severstal - INFO - Epoch 6/18 [58.0s] Train Loss=0.0132 Acc=0.9570 MacroF1=0.7766 | Val Loss=0.0163 Acc=0.9366 MacroF1=0.7365
+2026-11-24 16:06:48,592 - Severstal - INFO - Train per-class: 1:P=0.846 R=0.635 F1=0.725, 2:P=0.691 R=0.528 F1=0.599, 3:P=0.878 R=0.837 F1=0.857, 4:P=0.925 R=0.925 F1=0.925
+2026-11-24 16:06:48,592 - Severstal - INFO - Val   per-class: 1:P=0.665 R=0.790 F1=0.722, 2:P=0.548 R=0.645 F1=0.593, 3:P=0.843 R=0.703 F1=0.767, 4:P=0.854 R=0.875 F1=0.864
+2026-11-24 16:06:48,688 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 6)
+2026-11-24 16:07:46,874 - Severstal - INFO - Epoch 7/18 [58.2s] Train Loss=0.0089 Acc=0.9664 MacroF1=0.8627 | Val Loss=0.0107 Acc=0.9674 MacroF1=0.8618
+2026-11-24 16:07:46,874 - Severstal - INFO - Train per-class: 1:P=0.889 R=0.731 F1=0.802, 2:P=0.826 R=0.813 F1=0.820, 3:P=0.894 R=0.872 F1=0.883, 4:P=0.947 R=0.945 F1=0.946
+2026-11-24 16:07:46,874 - Severstal - INFO - Val   per-class: 1:P=0.783 R=0.839 F1=0.810, 2:P=0.740 R=0.871 F1=0.800, 3:P=0.885 R=0.905 F1=0.895, 4:P=1.000 R=0.890 F1=0.942
+2026-11-24 16:07:46,974 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 7)
+2026-11-24 16:07:47,015 - Severstal - INFO - New best accuracy: 0.9674 (saved to ./logs\20261124_160028\models\best_acc_model.pth)
+2026-11-24 16:07:47,050 - Severstal - INFO - New best F1: 0.8618 (saved to ./logs\20261124_160028\models\best_f1_model.pth)
+2026-11-24 16:08:45,147 - Severstal - INFO - Epoch 8/18 [58.1s] Train Loss=0.0076 Acc=0.9711 MacroF1=0.8944 | Val Loss=0.0117 Acc=0.9662 MacroF1=0.8491
+2026-11-24 16:08:45,147 - Severstal - INFO - Train per-class: 1:P=0.902 R=0.782 F1=0.838, 2:P=0.892 R=0.870 F1=0.881, 3:P=0.908 R=0.882 F1=0.895, 4:P=0.963 R=0.965 F1=0.964
+2026-11-24 16:08:45,148 - Severstal - INFO - Val   per-class: 1:P=0.874 R=0.772 F1=0.820, 2:P=0.739 R=0.823 F1=0.779, 3:P=0.866 R=0.921 F1=0.893, 4:P=0.988 R=0.835 F1=0.905
+2026-11-24 16:08:45,250 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 8)
+2026-11-24 16:09:43,548 - Severstal - INFO - Epoch 9/18 [58.3s] Train Loss=0.0063 Acc=0.9739 MacroF1=0.9031 | Val Loss=0.0132 Acc=0.9655 MacroF1=0.8466
+2026-11-24 16:09:43,549 - Severstal - INFO - Train per-class: 1:P=0.940 R=0.797 F1=0.863, 2:P=0.892 R=0.870 F1=0.881, 3:P=0.910 R=0.901 F1=0.905, 4:P=0.967 R=0.960 F1=0.964
+2026-11-24 16:09:43,549 - Severstal - INFO - Val   per-class: 1:P=0.780 R=0.853 F1=0.814, 2:P=0.824 R=0.677 F1=0.743, 3:P=0.887 R=0.883 F1=0.885, 4:P=0.968 R=0.920 F1=0.944
+2026-11-24 16:09:43,633 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 9)
+2026-11-24 16:10:41,962 - Severstal - INFO - Epoch 10/18 [58.3s] Train Loss=0.0060 Acc=0.9739 MacroF1=0.9097 | Val Loss=0.0119 Acc=0.9683 MacroF1=0.8590
+2026-11-24 16:10:41,963 - Severstal - INFO - Train per-class: 1:P=0.902 R=0.802 F1=0.849, 2:P=0.905 R=0.927 F1=0.916, 3:P=0.905 R=0.908 F1=0.907, 4:P=0.970 R=0.965 F1=0.967
+2026-11-24 16:10:41,964 - Severstal - INFO - Val   per-class: 1:P=0.784 R=0.826 F1=0.804, 2:P=0.730 R=0.871 F1=0.794, 3:P=0.880 R=0.930 F1=0.904, 4:P=0.926 R=0.940 F1=0.933
+2026-11-24 16:10:42,067 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 10)
+2026-11-24 16:10:42,104 - Severstal - INFO - New best accuracy: 0.9683 (saved to ./logs\20261124_160028\models\best_acc_model.pth)
+2026-11-24 16:11:40,482 - Severstal - INFO - Epoch 11/18 [58.4s] Train Loss=0.0054 Acc=0.9744 MacroF1=0.9083 | Val Loss=0.0112 Acc=0.9714 MacroF1=0.8623
+2026-11-24 16:11:40,483 - Severstal - INFO - Train per-class: 1:P=0.892 R=0.813 F1=0.851, 2:P=0.894 R=0.894 F1=0.894, 3:P=0.917 R=0.897 F1=0.907, 4:P=0.983 R=0.980 F1=0.981
+2026-11-24 16:11:40,484 - Severstal - INFO - Val   per-class: 1:P=0.861 R=0.772 F1=0.814, 2:P=0.729 R=0.823 F1=0.773, 3:P=0.901 R=0.922 F1=0.911, 4:P=0.984 R=0.920 F1=0.951
+2026-11-24 16:11:40,581 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 11)
+2026-11-24 16:11:40,619 - Severstal - INFO - New best accuracy: 0.9714 (saved to ./logs\20261124_160028\models\best_acc_model.pth)
+2026-11-24 16:11:40,656 - Severstal - INFO - New best F1: 0.8623 (saved to ./logs\20261124_160028\models\best_f1_model.pth)
+2026-11-24 16:12:38,895 - Severstal - INFO - Epoch 12/18 [58.2s] Train Loss=0.0042 Acc=0.9771 MacroF1=0.9340 | Val Loss=0.0145 Acc=0.9670 MacroF1=0.8536
+2026-11-24 16:12:38,896 - Severstal - INFO - Train per-class: 1:P=0.939 R=0.884 F1=0.911, 2:P=0.927 R=0.935 F1=0.931, 3:P=0.919 R=0.897 F1=0.908, 4:P=0.988 R=0.985 F1=0.986
+2026-11-24 16:12:38,896 - Severstal - INFO - Val   per-class: 1:P=0.883 R=0.772 F1=0.824, 2:P=0.750 R=0.774 F1=0.762, 3:P=0.887 R=0.890 F1=0.888, 4:P=0.978 R=0.905 F1=0.940
+2026-11-24 16:12:38,995 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 12)
+2026-11-24 16:13:37,416 - Severstal - INFO - Epoch 13/18 [58.4s] Train Loss=0.0026 Acc=0.9827 MacroF1=0.9612 | Val Loss=0.0133 Acc=0.9758 MacroF1=0.8861
+2026-11-24 16:13:37,417 - Severstal - INFO - Train per-class: 1:P=0.954 R=0.918 F1=0.935, 2:P=0.992 R=0.984 F1=0.988, 3:P=0.933 R=0.923 F1=0.928, 4:P=0.993 R=0.995 F1=0.994
+2026-11-24 16:13:37,418 - Severstal - INFO - Val   per-class: 1:P=0.873 R=0.857 F1=0.865, 2:P=0.761 R=0.871 F1=0.812, 3:P=0.910 R=0.939 F1=0.925, 4:P=0.984 R=0.905 F1=0.943
+2026-11-24 16:13:37,524 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 13)
+2026-11-24 16:13:37,566 - Severstal - INFO - New best accuracy: 0.9758 (saved to ./logs\20261124_160028\models\best_acc_model.pth)
+2026-11-24 16:13:37,608 - Severstal - INFO - New best F1: 0.8861 (saved to ./logs\20261124_160028\models\best_f1_model.pth)
+2026-11-24 16:14:35,829 - Severstal - INFO - Epoch 14/18 [58.2s] Train Loss=0.0023 Acc=0.9842 MacroF1=0.9669 | Val Loss=0.0257 Acc=0.9736 MacroF1=0.8828
+2026-11-24 16:14:35,831 - Severstal - INFO - Train per-class: 1:P=0.961 R=0.935 F1=0.948, 2:P=0.992 R=0.992 F1=0.992, 3:P=0.939 R=0.926 F1=0.933, 4:P=0.995 R=0.995 F1=0.995
+2026-11-24 16:14:35,831 - Severstal - INFO - Val   per-class: 1:P=0.864 R=0.848 F1=0.856, 2:P=0.768 R=0.855 F1=0.809, 3:P=0.896 R=0.935 F1=0.915, 4:P=0.979 R=0.925 F1=0.951
+2026-11-24 16:14:35,929 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 14)
+2026-11-24 16:15:34,317 - Severstal - INFO - Epoch 15/18 [58.4s] Train Loss=0.0018 Acc=0.9860 MacroF1=0.9721 | Val Loss=0.0394 Acc=0.9712 MacroF1=0.8778
+2026-11-24 16:15:34,319 - Severstal - INFO - Train per-class: 1:P=0.972 R=0.935 F1=0.953, 2:P=1.000 R=1.000 F1=1.000, 3:P=0.947 R=0.933 F1=0.940, 4:P=0.997 R=0.993 F1=0.995
+2026-11-24 16:15:34,319 - Severstal - INFO - Val   per-class: 1:P=0.866 R=0.835 F1=0.850, 2:P=0.733 R=0.887 F1=0.803, 3:P=0.875 R=0.940 F1=0.906, 4:P=0.964 R=0.940 F1=0.952
+2026-11-24 16:15:34,421 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 15)
+2026-11-24 16:16:32,668 - Severstal - INFO - Epoch 16/18 [58.2s] Train Loss=0.0017 Acc=0.9859 MacroF1=0.9725 | Val Loss=0.0448 Acc=0.9705 MacroF1=0.8779
+2026-11-24 16:16:32,670 - Severstal - INFO - Train per-class: 1:P=0.975 R=0.953 F1=0.964, 2:P=0.992 R=0.992 F1=0.992, 3:P=0.949 R=0.927 F1=0.938, 4:P=0.995 R=0.998 F1=0.996
+2026-11-24 16:16:32,670 - Severstal - INFO - Val   per-class: 1:P=0.879 R=0.839 F1=0.858, 2:P=0.815 R=0.855 F1=0.835, 3:P=0.874 R=0.936 F1=0.904, 4:P=0.983 R=0.855 F1=0.914
+2026-11-24 16:16:32,778 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 16)
+2026-11-24 16:17:31,146 - Severstal - INFO - Epoch 17/18 [58.4s] Train Loss=0.0019 Acc=0.9864 MacroF1=0.9716 | Val Loss=0.0385 Acc=0.9711 MacroF1=0.8715
+2026-11-24 16:17:31,147 - Severstal - INFO - Train per-class: 1:P=0.977 R=0.949 F1=0.963, 2:P=0.992 R=0.992 F1=0.992, 3:P=0.949 R=0.934 F1=0.942, 4:P=0.995 R=0.985 F1=0.990
+2026-11-24 16:17:31,147 - Severstal - INFO - Val   per-class: 1:P=0.864 R=0.826 F1=0.845, 2:P=0.736 R=0.855 F1=0.791, 3:P=0.870 R=0.953 F1=0.910, 4:P=0.973 R=0.910 F1=0.941
+2026-11-24 16:17:31,244 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 17)
+2026-11-24 16:18:29,494 - Severstal - INFO - Epoch 18/18 [58.2s] Train Loss=0.0020 Acc=0.9870 MacroF1=0.9731 | Val Loss=0.0451 Acc=0.9741 MacroF1=0.8761
+2026-11-24 16:18:29,494 - Severstal - INFO - Train per-class: 1:P=0.970 R=0.949 F1=0.959, 2:P=0.992 R=0.992 F1=0.992, 3:P=0.951 R=0.937 F1=0.944, 4:P=1.000 R=0.995 F1=0.997
+2026-11-24 16:18:29,494 - Severstal - INFO - Val   per-class: 1:P=0.835 R=0.862 F1=0.848, 2:P=0.736 R=0.855 F1=0.791, 3:P=0.919 R=0.919 F1=0.919, 4:P=0.979 R=0.915 F1=0.946
+2026-11-24 16:18:29,585 - Severstal - INFO - Checkpoint saved to ./logs\20261124_160028\checkpoint_last.pth (epoch 18)
+2026-11-24 16:18:29,613 - Severstal - INFO - Loading best model (by accuracy) for final evaluation
+2026-11-24 16:18:29,726 - Severstal - INFO - Evaluating on validation set (best acc model)
+2026-11-24 16:18:36,455 - Severstal - INFO - Val Loss: 0.0133, Val Acc: 0.9758, Val MacroF1=0.8861
+2026-11-24 16:18:36,455 - Severstal - INFO -   Class 1: Precision=0.8727, Recall=0.8571, F1=0.8649
+2026-11-24 16:18:36,456 - Severstal - INFO -   Class 2: Precision=0.7606, Recall=0.8710, F1=0.8120
+2026-11-24 16:18:36,456 - Severstal - INFO -   Class 3: Precision=0.9105, Recall=0.9394, F1=0.9247
+2026-11-24 16:18:36,456 - Severstal - INFO -   Class 4: Precision=0.9837, Recall=0.9050, F1=0.9427
+2026-11-24 16:18:36,457 - Severstal - INFO - Evaluating on test set (best acc model)
+2026-11-24 16:19:04,679 - Severstal - INFO - Test Loss: 0.0111, Test Acc: 0.9736, Test MacroF1=0.8923
+2026-11-24 16:19:04,680 - Severstal - INFO -   Class 1: Precision=0.8636, Recall=0.8482, F1=0.8559
+2026-11-24 16:19:04,680 - Severstal - INFO -   Class 2: Precision=0.8261, Recall=0.9194, F1=0.8702
+2026-11-24 16:19:04,680 - Severstal - INFO -   Class 3: Precision=0.8878, Recall=0.9464, F1=0.9161
+2026-11-24 16:19:04,680 - Severstal - INFO -   Class 4: Precision=0.9674, Recall=0.8900, F1=0.9271
+2026-11-24 16:19:04,680 - Severstal - INFO - Loading best model (by F1) for final evaluation
+2026-11-24 16:19:04,772 - Severstal - INFO - Evaluating on validation set (best F1 model)
+2026-11-24 16:19:11,325 - Severstal - INFO - Val Loss (F1 model): 0.0133, Val Acc (F1 model): 0.9758, Val MacroF1 (F1 model)=0.8861
+2026-11-24 16:19:11,325 - Severstal - INFO -   Class 1: Precision=0.8727, Recall=0.8571, F1=0.8649
+2026-11-24 16:19:11,326 - Severstal - INFO -   Class 2: Precision=0.7606, Recall=0.8710, F1=0.8120
+2026-11-24 16:19:11,326 - Severstal - INFO -   Class 3: Precision=0.9105, Recall=0.9394, F1=0.9247
+2026-11-24 16:19:11,326 - Severstal - INFO -   Class 4: Precision=0.9837, Recall=0.9050, F1=0.9427
+2026-11-24 16:19:11,326 - Severstal - INFO - Evaluating on test set (best F1 model)
+2026-11-24 16:19:18,108 - Severstal - INFO - Test Loss (F1 model): 0.0111, Test Acc (F1 model): 0.9736, Test MacroF1 (F1 model)=0.8923
+2026-11-24 16:19:18,108 - Severstal - INFO -   Class 1: Precision=0.8636, Recall=0.8482, F1=0.8559
+2026-11-24 16:19:18,108 - Severstal - INFO -   Class 2: Precision=0.8261, Recall=0.9194, F1=0.8702
+2026-11-24 16:19:18,108 - Severstal - INFO -   Class 3: Precision=0.8878, Recall=0.9464, F1=0.9161
+2026-11-24 16:19:18,109 - Severstal - INFO -   Class 4: Precision=0.9674, Recall=0.8900, F1=0.9271
+2026-11-24 16:19:18,477 - Severstal - INFO - Training plots saved to ./logs\20261124_160028\visualizations/training_metrics.png
+2026-11-24 16:19:18,478 - Severstal - INFO - === Run finished ===

@@ -5,5 +5,7 @@ tmp
 logs
 adversarial_robustness
 fin_results
+fin_results2
+comparison.py
 config.json
 train_scrpt.slurm

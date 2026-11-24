@@ -202,7 +202,7 @@ def main(config_path='config.json'):
     optimizer = torch.optim.Adam(model.parameters(), lr=config.initial_lr,
                                  weight_decay=config.w_decay)
     scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=8, gamma=0.5
+        optimizer, step_size=6, gamma=0.5
         )
 
     if hasattr(model, 'device'):

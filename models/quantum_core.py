@@ -319,36 +319,66 @@ class Q_Net(nn.Module):
         return x
 
 
-def build_quantum_layer(num_features, num_classes, config, reps_default=4):
-    """Build a ``Q_Net`` from configuration attributes.
+def build_quantum_layer(
+    num_features,
+    num_classes,
+    config,
+    reps_default=4,
+    ansatz_type=None,
+    entanglement=None,
+    encoding_type=None,
+    output_transform=False,
+    reps=None,
+    input_scale=None,
+):
+    """Build a Q_Net with optional per-head overrides.
 
     Args:
-        num_features: Number of classical features fed into the quantum
-            circuit.
+        num_features: Number of classical features fed into the quantum circuit.
         num_classes: Number of output classes.
-        config: Configuration object exposing ``encoding_type``,
-            ``ansatz_type``, ``entanglement``, ``reps``, ``shots``,
-            ``backend_type`` and ``transpile_before``.
-        reps_default: Fallback number of variational repetitions when
-            ``config.reps`` is not provided.
+        config: Configuration object.
+        reps_default: Fallback number of variational repetitions.
+        ansatz_type: Optional override for config.ansatz_type.
+        entanglement: Optional override for config.entanglement.
+        encoding_type: Optional override for config.encoding_type.
+        output_transform: If True, Q_Net applies its internal fc_out and returns
+            num_classes logits instead of the raw QNN output.
+        reps: Optional override for config.reps.
+        input_scale: Optional scalar multiplier applied to the input before
+            the encoding transform.
 
     Returns:
-        ``Q_Net`` instance wrapping the constructed ``SamplerQNN`` and the
-        appropriate input transform for the selected encoding.
+        Q_Net instance.
     """
-    encoding_type = getattr(config, 'encoding_type', 'angle')
-    ansatz_type = getattr(config, 'ansatz_type', 'ry')
-    entanglement = getattr(config, 'entanglement', 'circular')
-    reps = getattr(config, 'reps', reps_default)
+    encoding_type = encoding_type or getattr(config, 'encoding_type', 'angle')
+    ansatz_type = ansatz_type or getattr(config, 'ansatz_type', 'ry')
+    entanglement = entanglement or getattr(config, 'entanglement', 'circular')
+    reps = reps if reps is not None else getattr(config, 'reps', reps_default)
 
     feature_map, input_transform, num_qubits = create_encoding(
         encoding_type, num_features
     )
+
+    if input_scale is not None:
+        base_transform = input_transform
+
+        def input_transform(x):
+            x = x * input_scale
+            return base_transform(x) if base_transform is not None else x
+
     ansatz = create_ansatz(ansatz_type, num_qubits, reps, entanglement)
 
     qnn = create_qnn(
-        feature_map, ansatz, config.shots,
+        feature_map,
+        ansatz,
+        config.shots,
         backend_type=config.backend_type,
         transpile_before=config.transpile_before,
     )
-    return Q_Net(qnn, num_classes, input_transform=input_transform)
+
+    return Q_Net(
+        qnn,
+        num_classes,
+        input_transform=input_transform,
+        output_transform=True if output_transform else None,
+    )

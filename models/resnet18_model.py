@@ -129,6 +129,67 @@ class HybridQNet(nn.Module):
         output = torch.cat((qout1, qout2, qout3), dim=1)
         BN_output = self.BN_out(output)
         return self.final(BN_output)
+    
+class HybridQNetOLD(nn.Module): # NEED Todo
+    """ResNet18 backbone with parallel quantum and classical layers."""
+
+    def __init__(self, num_classes, config):
+        """Initialize the hybrid quantum model.
+
+        Args:
+            num_classes: Number of output classes.
+            config: Configuration object providing ``num_features``,
+                ``encoding_type``, ``ansatz_type``, ``entanglement``,
+                ``reps``, ``shots``, ``backend_type`` and
+                ``transpile_before``.
+
+        Returns:
+            None.
+        """
+        super().__init__()
+        self.feature_extractor = ResNet18FeatureExtractor()
+
+        self.num_features = getattr(config, 'num_features', num_classes)
+        self.projection = nn.Linear(512, self.num_features)
+        self.BN_in = nn.BatchNorm1d(self.num_features)
+
+        self.q_net1 = build_quantum_layer(
+            self.num_features, num_classes,
+            config, reps_default=model_config['reps']
+        )
+        self.q_net2 = build_quantum_layer(
+            self.num_features, num_classes,
+            config, reps_default=model_config['reps']
+        )
+        self.q_net3 = build_quantum_layer(
+            self.num_features, num_classes,
+            config, reps_default=model_config['reps']
+        )
+
+        q_out_size = self.q_net1.output_shape[0]
+        self.BN_out = nn.BatchNorm1d(q_out_size * 3)
+        self.final = nn.Linear(q_out_size * 3, num_classes)
+
+    def forward(self, x):
+        """Compute class logits for an input batch.
+
+        Args:
+            x: Input tensor of shape ``(N, 1, H, W)`` or ``(N, 3, H, W)``.
+
+        Returns:
+            Logit tensor of shape ``(N, num_classes)``.
+        """
+        features = self.feature_extractor(x)
+        p_features = self.projection(features)
+        projected_features = self.BN_in(p_features)
+
+        qout1 = self.q_net1(projected_features)
+        qout2 = self.q_net2(projected_features)
+        qout3 = self.q_net3(projected_features)
+
+        output = torch.cat((qout1, qout2, qout3), dim=1)
+        BN_output = self.BN_out(output)
+        return self.final(BN_output)
 
 
 @register_model("resnet18")

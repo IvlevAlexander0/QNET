@@ -1,8 +1,8 @@
 {
     "dataset_path": "../Dataset_k",
-    "c_load_path": "__.pth",
+    "c_load_path": "./best_models_weights/effnetv0_c_18/models/best_f1_model.pth",
     "q_load_path": "__.pth",
-    "h_load_path": "./best_models_weights/best_clas_model.pth",
+    "h_load_path": "./best_models_weights/mobilenetv3_q_res_base/models/best_f1_model.pth",
 
     "train_part": 0.5,
     "val_part": 0.25,
@@ -10,7 +10,7 @@
     "in_width": 800,
     "threshold": 0.5,
 
-    "epochs": 16,
+    "epochs": 18,
     "initial_lr": 0.002,
     "w_decay": 0.0,
     "batch_size": 32,
@@ -20,7 +20,7 @@
     "transpile_before": true,
     "freeze_quantum": true,
     "encoding_type": "angle",
-    "ansatz_type": "rxryrx",
+    "ansatz_type": "ry",
     "entanglement": "circular",
     "reps": 4,
 
@@ -36,7 +36,7 @@
     "eps": 1e-7,
 
     "model_name": "effnetv0",
-    "model_mode": "quantum2",
+    "model_mode": "quantum_res",
 
     "noise_config": {
         "gaussian_std": null,
@@ -59,5 +59,5 @@
     "save_visualizations": true,
     "enable_tensorboard": true,
     "resume_from": null,
-    "resume_from_": "./logs/20261019_120250"
+    "resume_from_": "./logs/20261116_114351"
 }

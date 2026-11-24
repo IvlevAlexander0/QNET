@@ -1,4 +1,5 @@
-"""ResNet18-based classical and hybrid quantum models."""
+"""MobileNetv3_Large-based classical and hybrid quantum models."""
+import math
 
 import torch
 import torch.nn as nn
@@ -54,7 +55,7 @@ class MobileNetV3(nn.Module):
         """
         super().__init__()
         self.feature_extractor = MobileNetV3FeatureExtractor()
-        self.projection = nn.Linear(960, num_classes)
+        self.classical = nn.Linear(960, num_classes)
 
     def forward(self, x):
         """Compute class logits for an input batch.
@@ -66,7 +67,7 @@ class MobileNetV3(nn.Module):
             Logit tensor of shape ``(N, num_classes)``.
         """
         features = self.feature_extractor(x)
-        return self.projection(features)
+        return self.classical(features)
 
 
 class HybridQNet(nn.Module):
@@ -182,10 +183,54 @@ class HybridQNet2(nn.Module):
         output = self.q_net1(projected_features)
 
         return self.final(output)
+    
+class HybridResidualQNet(nn.Module):
+    """MobileNetV3 + classical logits + residual quantum correction."""
+
+    def __init__(self, num_classes, config):
+        super().__init__()
+        self.feature_extractor = MobileNetV3FeatureExtractor()
+
+        self.num_features = getattr(config, 'num_features', num_classes)
+        self.encoding_type = getattr(config, 'encoding_type', 'angle')
+
+        self.classical = nn.Linear(960, num_classes)
+
+        self.projection = nn.Linear(960, self.num_features)
+        self.BN_in = nn.BatchNorm1d(self.num_features)
+
+        self.q_net = build_quantum_layer(
+            self.num_features,
+            num_classes,
+            config,
+            reps_default=model_config['reps'],
+            output_transform=True,
+        )
+
+        init_scale = float(getattr(config, 'quantum_scale_init', 0.0))
+        self.q_scale = nn.Parameter(torch.tensor(init_scale))
+        self.dropout = nn.Dropout(float(getattr(config, 'fusion_dropout', 0.0)))
+
+    def _quantum_input(self, features):
+        z = self.BN_in(self.projection(features))
+        if self.encoding_type == 'angle':
+            z = torch.tanh(z) * (torch.pi / 2.0)
+        return z
+
+    def forward(self, x):
+        features = self.feature_extractor(x)
+        classical_logits = self.classical(features)
+
+        q_logits = self.q_net(self._quantum_input(features))
+        q_logits = self.dropout(q_logits)
+        #print(classical_logits, self.q_scale, q_logits)
+        #print(self.q_scale)
+
+        return classical_logits + 10.0 * self.q_scale * q_logits
 
 
 @register_model("mobilenetv3")
-def create_resnet50_model(mode, num_classes, input_shape, config):
+def create_mobilenetv3_model(mode, num_classes, input_shape, config):
     """Create a MobileNetV3-based model for the requested mode.
 
     Args:
@@ -262,6 +307,32 @@ def create_resnet50_model(mode, num_classes, input_shape, config):
             'quantum_params': quantum_params,
             'classical_prefix': ['feature_extractor.', 'projection.',
                                 'BN_in.', 'final.'],
+            'quantum_prefix': 'q_net.',
+            'base_model': hybrid_model,
+        }
+        return model, info
+    elif mode == 'quantum_res':
+        hybrid_model = HybridResidualQNet(num_classes, config)
+        model = nn.Sequential(hybrid_model, nn.Sigmoid())
+
+        classical_params = (
+            list(hybrid_model.feature_extractor.parameters())
+            + list(hybrid_model.classical.parameters())
+        )
+        quantum_params = (
+            list(hybrid_model.projection.parameters())
+            + list(hybrid_model.BN_in.parameters())
+            + list(hybrid_model.q_net.parameters())
+            + [hybrid_model.q_scale]
+        )
+        info = {
+            'type': 'hybrid_residual',
+            'model_name': 'mobilenetv3',
+            'classical_params': classical_params,
+            'quantum_params': quantum_params,
+            'classical_prefix': [
+                'feature_extractor.', 'classical.', 'q_scale', 'projection.', 'BN_in.'
+            ],
             'quantum_prefix': 'q_net.',
             'base_model': hybrid_model,
         }
